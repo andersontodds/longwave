@@ -160,3 +160,69 @@ day_e1s = [getindex.(e,1) for e in day_es]
 
 plot(real(day_e1s), zs/1000;
     label=permutedims(solverstrings), legend=:topleft)
+
+night_e1s = [getindex.(e,1) for e in night_es]
+
+plot(real(night_e1s), zs/1000;
+    label=permutedims(solverstrings), legend=:topleft)
+
+TO # display TimerOutputs in console
+# use Tsit5() in this method
+
+## Reproduce Pitteway 1965 figures 
+# https://doi.org/10.1098/rsta.1965.0004
+# figure 2: wavefields
+
+zs = 110e3:-500:50e3
+zskm = zs/1000
+
+e = LMP.integratewavefields(zs, ea, frequency, bfield, day; unscale=true)
+
+ex1 = getindex.(e, 1)
+ey1 = getindex.(e, 2)
+ex2 = getindex.(e, 5)
+hx2 = getindex.(e, 7)
+
+function plotfield(field; kwargs...)
+    p = plot(real(field), zskm; color="black", linewidth=1.5, legend=false,
+            xlims=(-0.8,0.8), label="real",
+            framestyle=:grid, kwargs...)
+    plot!(p, imag(field), zskm; color="black", linewidth=1.5, linestyle=:dash, label="imag")
+    plot!(p, abs.(field), zskm; color="black", linewidth=3, label="abs")
+    plot!(p, -abs.(field), zskm; color="black", linewidth=3, label="")
+    return p
+end
+
+fs = 10
+ex1p = plotfield(ex1; ylims=(49,81), yaxis=false, yformatter=_->"");
+annotate!(ex1p, 0.2, 79, text("\$E_{x,1}\$", fs));
+ey1p = plotfield(ex1; ylims=(49,81));
+annotate!(ey1p, 0.2, 79, text("\$E_{y,1}\$", fs));
+annotate!(ey1p, -0.98, 83, text("height (km)", fs));
+ex2p = plotfield(ex2; ylims=(49, 86), yaxis=false, yformatter=_->"");
+annotate!(ex2p, 0.3, 84, text("\$E_{x,2}\$", fs));
+hx2p = plotfield(hx2; ylims=(49, 86));
+annotate!(hx2p, 0.35, 84, text("\$H_{x,2}\$", fs, :center));
+plot(ex1p, ey1p, ex2p, hx2p; layout=(2,2), size=(400,600), top_margin=5mm)
+nothing #hide
+
+## Pitteway 1965 figure 3: wave with f = 202 kHz at normal incidence to nighttime ionosphere
+
+ea = EigenAngle(0)
+frequency = Frequency(202e3)
+bfield = BField(50e-6, deg2rad(68), deg2rad(111))
+ground = GROUND[8]
+
+zs = 110e3:-50:70e3
+zskm = zs/1000
+
+e = LMP.integratewavefields(zs, ea, frequency, bfield, night)
+
+ey1 = getindex.(e, 2)
+hx2 = getindex.(e, 7)
+
+ey1p = plotfield(ey1; ylims=(75, 102), title="\$E_{y,1}\$");
+hx2p = plotfield(hx2; ylims=(75, 102), title="\$H_{x,2}\$");
+plot(ey1p, hx2p; layout=(1,2), size=(400,500))
+nothing #hide
+
