@@ -114,3 +114,49 @@ nothing #hide
 # NOTE: looks like my hx2_unscaled differs slightly from the example; the lowest-altitude
 # discontinuity occurs at a lower altitude (<60 km) than in the example (>60km).
 
+## Differential Equations solver
+# test different solvers to determine which makes the fewest function calls while maintaing
+# good accuracy
+
+# pass IntegrationParams through the LMPParams struct
+TO = TimerOutput()
+
+zs = 110e3:-50:0
+solvers = [Tsit5(), BS5(lazy=false), OwrenZen5(),
+           Vern6(lazy=false), Vern7(lazy=false), Vern8(lazy=false), Vern9(lazy=false)]
+
+#solverstrings = replace.(string.(solvers), "OrdinaryDiffEq."=>"")
+solverstrings = string.(first.(split.(string.(solvers), "(")))
+
+day_es = []
+night_es = []
+for s in eachindex(solvers)
+    ip = IntegrationParams(solver=solvers[s], tolerance=1e-6)
+    params = LMPParams(wavefieldintegrationparams=ip)
+
+    # make sure method is compiled
+    LMP.integratewavefields(zs, ea, frequency, bfield, day; params=params);
+    LMP.integratewavefields(zs, ea, frequency, bfield, night; params=params);
+
+    solverstring = solverstrings[s]
+    let day_e, night_e
+        # repeat 200 times to average calls
+        for i = 1:200
+            # day ionosphere
+            @timeit TO solverstring begin
+                day_e = LMP.integratewavefields(zs, ea, frequency, bfield, day; params=params)
+            end
+            # night ionosphere
+            @timeit TO solverstring begin
+                night_e = LMP.integratewavefields(zs, ea, frequency, bfield, night; params=params)
+            end
+        end
+        push!(day_es, day_e)
+        push!(night_es, night_e)
+    end
+end
+
+day_e1s = [getindex.(e,1) for e in day_es]
+
+plot(real(day_e1s), zs/1000;
+    label=permutedims(solverstrings), legend=:topleft)
