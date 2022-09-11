@@ -13,21 +13,21 @@ No issues.
 
 ### [Solvers for ionosphere reflection coefficient](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/integratedreflection/)
  1. Passing ````LMPParams()```` to ````LMP.dRdz```` doesn't work as written in the example:
-    ```
+    ```julia
       prob = ODEProblem{false}(LMP.dRdz, Rtop, (topheight, 0.0), (me, LMPParams()))
     ```
     Bypassed this by passing ````me```` as the only parameter:
-    ```
+    ```julia
       prob = ODEProblem{false}(LMP.dRdz, Rtop, (topheight, 0.0), me)
     ```
     Not sure what the impact on the ODE problem/solution is!
     
  2. ````solverstrings```` includes solver optional arguments, which makes some of them very long, which is difficult to plot.
-    ```
+    ```julia
       solverstrings = replace.(string.(solvers), "OrdinaryDiffEq."=>"")
     ```
     Solution: only use the substring before the first "(":
-    ```
+    ```julia
       solverstrings = string.(first.(split.(string.(solvers), "(")))
     ```
     This change improves the solver evaluation heatmap formatting.
@@ -38,12 +38,12 @@ No issues.
 
 ### [Magnetic field direction](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/magneticfield/)
  1. ````Progress```` and ````next!```` are not found in ````LongwaveModePropagator````.  This is only important for progress logging in ````runlmp````.  To get around this, use:
-    ```
+    ```julia
       using ProgressLogging, TerminalLoggers
       using Logging: global_logger
     ```
     and make the following changes to ````runlmp````:
-    ```
+    ```julia
       function runlmp(inputs, outfile)
 
         h5open(outfile, "cw") do fid
