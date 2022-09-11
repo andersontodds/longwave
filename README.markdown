@@ -93,7 +93,7 @@ No issues.
  
  ## Versions:
  
- ```terminal
+ ```bash
            Status ~\Project.toml
        [6e4b80f9] BenchmarkTools v1.3.1
        [336ed68f] CSV v0.10.4
