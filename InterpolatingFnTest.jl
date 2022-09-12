@@ -3,7 +3,7 @@
 # 12 September 2022
 #
 # Explore examples in LongwaveModePropagator.jl by @fgasdia
-# 7. Multiple ionospheric species
+# 8. Multiple ionospheric species
 # https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/interpolatingfunctions/
 #
 # Compare different interpolating functions for density and collision frequency
