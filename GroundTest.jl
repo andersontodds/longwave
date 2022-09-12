@@ -25,7 +25,7 @@ const RX = GroundSampler(0:5e3:3000e3, Fields.Ez)
 const DAY = Species(LMP.QE, LMP.ME, z->waitprofile(z, 75, 0.3), electroncollisionfrequency)
 const NIGHT = Species(LMP.QE, LMP.ME, z->waitprofile(z, 82, 0.6), electroncollisionfrequency)
 
-# define funtion that takes day or night species and returns electric field amplitude
+# define function that takes day or night species and returns electric field amplitude
 function varyground(prf)
     amps = Vector{Vector{Float64}}(undef, length(GROUND))
     for i = 1:length(GROUND)

@@ -91,33 +91,57 @@ No issues.
     ```
  2. The computed nighttime phase differs by a constant -20 dB offset from both the LWPC and example LMP runs.  Haven't been able to find the error yet.
  
- ## Versions:
+
+### [Interpreting h' and β](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/interpretinghpbeta/)
+No issues.
+
+### [Multiple ionospheric species](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/multiplespecies/)
+No issues.
+
+### [Density and collision frequency as interpolating functions](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/interpolatingfunctions/)
+ 1. The example refers to the [FIRI model package](https://github.com/fgasdia/FaradayInternationalReferenceIonosphere.jl) with ````using FIRITools````, when it appears the correct statement should be:
+ ```julia
+ using FaradayInternationalReferenceIonosphere
+ import FaradayInternationalReferenceIonosphere as FIRI
+ ```
+ All references to ````FIRITools```` in the example should then be replaced with ````FIRI````.
+
+ Also note that ````FaradayInternationalReferenceIonosphere```` requires at least Julia 1.7.1!
+
+### [Ground](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/ground/)
+No issues.
+
+## Versions:
  
  ```bash
-           Status ~\Project.toml
-       [6e4b80f9] BenchmarkTools v1.3.1
-       [336ed68f] CSV v0.10.4
-       [13f3f980] CairoMakie v0.8.13
-       [a216cea6] CompoundPeriods v0.5.1
-       [0c46a032] DifferentialEquations v7.3.0
-       [5789e2e9] FileIO v1.15.0
-       [f67ccb44] HDF5 v0.16.11
-       [a98d9a8b] Interpolations v0.14.5
-       [033835bb] JLD2 v0.4.22
-       [7f56f5a3] LSODA v0.7.0
-       [38c6559a] LongwaveModePropagator v0.3.4
-       [23992714] MAT v0.10.3
-       [7eb4fadd] Match v1.2.0
-       [1dea7af3] OrdinaryDiffEq v6.26.4
-       [91a5bcdd] Plots v1.32.0
-       [c3e4b0f8] Pluto v0.19.11
-       [c46f51b8] ProfileView v1.5.1
-       [33c8b6b6] ProgressLogging v0.1.4
-       [a0859a10] RootsAndPoles v1.4.0
-       [c3572dad] Sundials v4.10.1
-       [5d786b92] TerminalLoggers v0.1.6
-       [a759f4b9] TimerOutputs v0.5.21
-       [ade2ca70] Dates
-       [37e2e46d] LinearAlgebra
-       [de0858da] Printf
+      Status `C:\Users\ander\.julia\environments\v1.8\Project.toml`
+  [6e4b80f9] BenchmarkTools v1.3.1
+  [336ed68f] CSV v0.10.4
+  [13f3f980] CairoMakie v0.8.13
+  [a216cea6] CompoundPeriods v0.5.1
+  [0c46a032] DifferentialEquations v7.3.0
+  [b4f34e82] Distances v0.10.7
+  [13f5a3bc] FaradayInternationalReferenceIonosphere v0.2.1
+  [5789e2e9] FileIO v1.15.0
+  [f67ccb44] HDF5 v0.16.11
+  [a98d9a8b] Interpolations v0.14.5
+  [033835bb] JLD2 v0.4.23
+  [7f56f5a3] LSODA v0.7.0
+  [38c6559a] LongwaveModePropagator v0.3.4
+  [23992714] MAT v0.10.3
+  [7eb4fadd] Match v1.2.0
+  [67f7b941] NormalHermiteSplines v0.5.2
+  [1dea7af3] OrdinaryDiffEq v6.26.4
+  [91a5bcdd] Plots v1.32.1
+  [c3e4b0f8] Pluto v0.19.11
+  [c46f51b8] ProfileView v1.5.1
+  [33c8b6b6] ProgressLogging v0.1.4
+  [a0859a10] RootsAndPoles v2.0.0
+  [c3572dad] Sundials v4.10.1
+  [5d786b92] TerminalLoggers v0.1.6
+  [a759f4b9] TimerOutputs v0.5.21
+  [770da0de] UpdateJulia v0.4.0
+  [ade2ca70] Dates
+  [37e2e46d] LinearAlgebra
+  [de0858da] Printf
  ```
