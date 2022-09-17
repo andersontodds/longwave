@@ -2,6 +2,23 @@
 
 Testing out @fgasdia's [LongwaveModePropagator.jl](https://github.com/fgasdia/LongwaveModePropagator.jl).
 
+## To do
+### lightning sferics
+Need to figure out how best to use LongwaveModePropagator for wideband "transmitters".  The goal should be to minimize the number of ````propagate()```` calls.  
+
+Probably best to start with the standard ````Transmitter```` and ````GroundSampler```` example and vary frequency, then see if we can fit an empirical function to amplitude and phase as a function of frequency and distance.
+
+Or, try comparing the amplitude and phase of ````Transmitter```` signals sampled by a ````GroundSampler```` at many different frequencies, with the interpolated amplitude and phase from only a few different input frequencies.
+
+### building ````SegmentedWaveguide````
+In order to propagate VLF sferics over long paths, need realistic ````Ground```` and ionosphere parameters.  To start:
+
+* ````Ground```` should be built by making a land/sea/ice mask with at least the same resolution as ````pathgrid````.  Keep only 3 ground parameter (epsilon, sigma) choices in order to maximize segment lenths.  For a uniform ionosphere, a ````SegmentedWaveguide```` can be built by calculating the great circle stroke-Rx path, then defining segments for every contiguous set of land, sea or ice mask cells traversed.
+
+* Ionosphere parameters (````hprime````, ````beta````) should be determined using a day/night mask (i.e. terminator determination).  Later, probably a good idea to use more realistic ionosphere parameters that depend on local time with ~1 hour resolution.
+
+* The ````SegmentedWaveguide```` can then be built by constructing ground segments with the land/sea/ice mask, then determining whether/where the path crosses the terminator line, and splitting the segment spanning the terminator at the terminator line.  Each segment is then assigned day or night ionosphere parameters.
+
 ## Error log
 ### [Introduction to defining scenarios](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/basic/)
 No issues.
