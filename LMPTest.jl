@@ -58,6 +58,6 @@ plot(rx.distance/1000, a;
         xlabel="range (km)", ylabel="amplitude (dB)",
         linewidth=1.5, legend=false)
 
-plot(rx.distance/1000, p;
-        xlabel="range (km)", ylabel="amplitude (dB)",
+plot(rx.distance/1000, rad2deg.(p);
+        xlabel="range (km)", ylabel="phase (∘)",
         linewidth=1.5, legend=false)
