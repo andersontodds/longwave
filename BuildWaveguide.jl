@@ -7,8 +7,10 @@
 
 using LongwaveModePropagator
 using MAT
-using GMT
+using GMT, Distances
 using GeoMakie, GLMakie
+
+const R_KM = 6371.8
 
 begin # import .mat file data
     lsifilename = "LSI_mask.mat"
@@ -88,5 +90,54 @@ let fig = Figure(resolution = (1200,800))
     lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2))
 
     fig
+end
+
+# find contiguous segments on geodesic that share ground values
+# define function that takes sspath and pathgnd as input and outputs Mx2 matrix
+# representing the length and ground value of each of M segments.  check that 
+# the total length
+function segments(path, ground)
+    grounddiff = findall(abs.(diff(ground)).>0)
+    segment_length = Vector{Float64}(undef, length(grounddiff)+1)
+    segment_ground = Vector{Float64}(undef, length(grounddiff)+1)
+    segment_ground[1] = ground[1]
+    segment_length[1] = haversine(reverse(path[1,:]), reverse(path[grounddiff[1],:]), R_KM)
+    for i in 2:length(segment_length)-1
+        segment_ground[i] = ground[grounddiff[i]-1]
+        segment_start = path[grounddiff[i-1],:]
+        segment_end = path[grounddiff[i],:]
+        segment_length[i] = haversine(reverse(segment_start), reverse(segment_end), R_KM)
+    end
+    segment_ground[end] = ground[end]
+    segment_length[end] = haversine(reverse(path[grounddiff[end],:]), reverse(path[end,:]), R_KM)
+
+    return segment_length, segment_ground
+end
+
+segment_length, segment_ground = segments(sspath, pathgnd)
+
+# plot propagation path with waveguide segments
+let fig = Figure(resolution = (1200,1200))
+    ga = GeoAxis(fig[1,1]; coastlines = true, title = "Land-sea-ice mask",
+        dest = "+proj=natearth", latlims = (40,90), lonlims = (-140, 30))
+
+    surface!(ga, lonmesh, latmesh, LSI; 
+        colormap="broc", colorrange=(-5,5), shading=false);
+    scatter!(ga, reverse(Tx); color=:green)
+    scatter!(ga, reverse(Rx); color=:red)
+    lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2))
+    
+
+    fa = Axis(fig[2,1], title="waveguide segments")
+    barplot!(fa, 1:length(segment_length), segment_length; 
+        direction=:x, 
+        color=segment_ground, colormap="berlin", colorrange=(-2,2))
+
+    # make a legend!!!
+    # labels = ["land", "sea", "ice"]
+    # elements = [PolyElement(polycolor=)]
+
+    fig
+
 end
 
