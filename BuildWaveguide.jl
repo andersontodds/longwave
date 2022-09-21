@@ -6,6 +6,7 @@
 # on land/sea/ice mask and day/night determination
 
 using LongwaveModePropagator
+using LongwaveModePropagator: QE, ME
 using MAT
 using GMT, Distances
 using GeoMakie, GLMakie
@@ -68,7 +69,7 @@ gnd = function getground(loc, latmesh, lonmesh, mask)
     lon = loc[:,1]
     lat = loc[:,2]
     gnd = Vector{Float64}(undef, length(lon))
-    for i in 1:length(lon)
+    for i in eachindex(lon)
         meshlat = findmin(abs.(lat[i].-latmesh[:,1]))[2]
         meshlon = findmin(abs.(lon[i].-lonmesh[1,:]))[2]
         gnd[i] = mask[meshlat, meshlon]
@@ -95,52 +96,119 @@ pathgnd = getground(sspath, latmesh, lonmesh, LSI)
 # find contiguous segments on geodesic that share ground values
 # define function that takes sspath and pathgnd as input and outputs Mx2 matrix
 # representing the length and ground value of each of M segments.  check that 
-# the total length
+# the sum of the segment lengths is equal to the geodesic length
 function segments(path, ground)
     grounddiff = findall(abs.(diff(ground)).>0)
     segment_length = Vector{Float64}(undef, length(grounddiff)+1)
-    segment_ground = Vector{Float64}(undef, length(grounddiff)+1)
-    segment_ground[1] = ground[1]
-    segment_length[1] = haversine(reverse(path[1,:]), reverse(path[grounddiff[1],:]), R_KM)
+    segment_ground_flag = Vector{Float64}(undef, length(grounddiff)+1)
+    segment_ground = Vector{Ground}(undef, length(grounddiff)+1)
+    segment_ground_flag[1] = ground[1]
+    segment_length[1] = haversine(path[1,:], path[grounddiff[1],:], R_KM)
     for i in 2:length(segment_length)-1
-        segment_ground[i] = ground[grounddiff[i]]
+        segment_ground_flag[i] = ground[grounddiff[i]]
         segment_start = path[grounddiff[i-1],:]
         segment_end = path[grounddiff[i],:]
-        segment_length[i] = haversine(reverse(segment_start), reverse(segment_end), R_KM)
+        segment_length[i] = haversine(segment_start, segment_end, R_KM)
     end
-    segment_ground[end] = ground[end]
-    segment_length[end] = haversine(reverse(path[grounddiff[end],:]), reverse(path[end,:]), R_KM)
+    segment_ground_flag[end] = ground[end]
+    segment_length[end] = haversine(path[grounddiff[end],:], path[end,:], R_KM)
 
-    return segment_length, segment_ground
+    land = findall(x->x==1, segment_ground_flag)
+    sea  = findall(x->x==-1, segment_ground_flag)
+    ice  = findall(x->x==0, segment_ground_flag)
+
+    segment_ground[land].= Ref(GROUND[5])
+    segment_ground[sea] .= Ref(GROUND[10])
+    segment_ground[ice] .= Ref(GROUND[1])
+    
+
+    return segment_length, segment_ground_flag, segment_ground
 end
 
-segment_length, segment_ground = segments(sspath, pathgnd)
+segment_length, segment_ground_flag, segment_ground = segments(sspath, pathgnd)
+
+# check sum of segment lengths equals distance between Tx and Rx
+sum(segment_length)
+total_distance = haversine(sspath[1,:], sspath[end,:], R_KM)
+
+## build SegmentedWaveguide
+tx = Transmitter(24e3)
+rx = GroundSampler(0:10e3:10000e3, Fields.Ez)
+rx_station = GroundSampler(total_distance, Fields.Ez)
+
+h1 = 75     # km
+β1 = 0.35   # km⁻¹
+
+bfield = BField(50e-6, π/2, 0)
+
+distances = vcat(0.0, segment_length)
+pop!(distances); 
+ground = segment_ground
+species = Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency)
+
+waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species, ground[i], 
+            distances[i]) for i in eachindex(distances)]);
+
+@time E, a, p = propagate(waveguide, tx, rx);
+# timing results 
+#   with 13 segments, tx = Transmitter(24e3); rx = GroundSampler(0:10e3:10000e3, Fields.Ez):
+# 469.944245 seconds (938.84 M allocations: 20.459 GiB, 1.69% gc time, 2.04% compilation time)
+# -> need to be much faster!
+# TODO: combine segments, starting with the shortest segment, until there are no more than 
+#   (5?) segments.
+#   BUT FIRST: test effect of increasing number of segments vs. increasing total distance
+# TODO: what we need is a prediction of amplitude and phase at the receiver location, not
+#   at a range of distances including the receiver location.  Try timing the same 
+#   SegmentedWaveguide run, but with rx = GroundSampler(distance_to_station, Fields.Ez)
+
+@time E_s, a_s, p_s = propagate(waveguide, tx, rx_station)
+# timing results
+#   with 13 segments, tx = Transmitter(24e3); rx = GroundSampler(total_distance, Fields.Ez):
+# 270.606685 seconds (931.78 M allocations: 20.124 GiB, 2.25% gc time, 0.31% compilation time)
+# -> not 1001 times faster! try fewer segments
 
 # plot propagation path with waveguide segments
 let fig = Figure(resolution = (1200,1200))
-    ga = GeoAxis(fig[1,1]; coastlines = true, title = "Land-sea-ice mask",
+    
+    ga = GeoAxis(fig[1:2,1:2]; coastlines = true, title = "Land-sea-ice mask",
         dest = "+proj=natearth", latlims = (40,90), lonlims = (-140, 30))
 
     surface!(ga, lonmesh, latmesh, LSI; 
         colormap="broc", colorrange=(-5,5), shading=false);
-    scatter!(ga, reverse(Tx); color=:green)
-    scatter!(ga, reverse(Rx); color=:red)
-    lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2))
-    
+    lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2),
+        linewidth=10)
+    scatter!(ga, reverse(Tx); color=:green, markersize=10)
+    scatter!(ga, reverse(Rx); color=:red, markersize=10)
+    GLMakie.text!(ga, "Tx", position = reverse(Tx), align=(:left, :top))
+    GLMakie.text!(ga, "Rx", position = reverse(Rx), align=(:left, :top))
 
-    fa = Axis(fig[2,1], title="waveguide segments",
-        xlabel="sement length (km)",
+    fa1 = Axis(fig[3,1], title="waveguide segments",
+        xlabel="segment length (km)",
         ylabel="segment number",
         yreversed=true)
-    barplot!(fa, 1:length(segment_length), segment_length; 
-        direction=:x, 
-        color=segment_ground, colormap="berlin", colorrange=(-2,2))
-
+    barplot!(fa1, 1:length(segment_length), segment_length; 
+        direction=:x, stack = [1,1,1,1,1,2,2,2,2,3,3,3,3],
+        color=segment_ground_flag, colormap="berlin", colorrange=(-2,2))
     # make a legend!!!
-    # labels = ["land", "sea", "ice"]
-    # elements = [PolyElement(polycolor=)]
+    colors = cgrad(:berlin, 5, categorical=true, rev=true)
+    labels = ["land: 15, 1e-3", "ice:     5, 1e-5", "sea:  81, 4"]
+    elements = [PolyElement(polycolor=colors[i+1]) for i in eachindex(labels)]
+    title = "Ground: ϵᵣ, σ"
+    Legend(fig[3,2],elements, labels, title)
+
+    fa2 = Axis(fig[4,1:2], title="amplitude: f = 24 kHz",
+        xlabel="distance (km)",
+        ylabel="amplitude (dB)")
+    lines!(rx.distance/1000, a;
+        linewidth=1.5)
+
+    fa3 = Axis(fig[5,1:2], title="phase: f = 24 kHz",
+        xlabel="distance (km)",
+        ylabel="phase (∘)")
+    lines!(rx.distance/1000, rad2deg.(p);
+        linewidth=1.5)
+    
 
     fig
-
+    #save("LSIpath_segments_amp_phase.png", fig, px_per_unit=2)
 end
-
