@@ -21,7 +21,7 @@ In order to propagate VLF sferics over long paths, need realistic ````Ground````
 
 * The ````SegmentedWaveguide```` can then be built by constructing ground segments with the land/sea/ice mask, then determining whether/where the path crosses the terminator line, and splitting the segment spanning the terminator at the terminator line.  Each segment is then assigned day or night ionosphere parameters.
 
-![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/main/LSIpath_segments_amp_phase.png?raw=true)
+![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/master/LSIpath_segments_amp_phase.png?raw=true)
 
 ## Error log
 ### [Introduction to defining scenarios](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/basic/)
