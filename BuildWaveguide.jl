@@ -80,17 +80,17 @@ gnd1 = getground(sspath[1,:]', latmesh, lonmesh, LSI) # not sure why sspath[1,:]
 pathgnd = getground(sspath, latmesh, lonmesh, LSI)
 
 # plot LSI mask with Tx-Rx path, colored by LSI value
-let fig = Figure(resolution = (1200,800))
-    ga = GeoAxis(fig[1,1]; coastlines = true, title = "Land-sea-ice mask")
+# let fig = Figure(resolution = (1200,800))
+#     ga = GeoAxis(fig[1,1]; coastlines = true, title = "Land-sea-ice mask")
 
-    surface!(ga, lonmesh, latmesh, LSI; 
-        colormap="broc", colorrange=(-5,5), shading=false);
-    scatter!(ga, reverse(Tx); color=:green)
-    scatter!(ga, reverse(Rx); color=:red)
-    lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2))
+#     surface!(ga, lonmesh, latmesh, LSI; 
+#         colormap="broc", colorrange=(-5,5), shading=false);
+#     scatter!(ga, reverse(Tx); color=:green)
+#     scatter!(ga, reverse(Rx); color=:red)
+#     lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2))
 
-    fig
-end
+#     fig
+# end
 
 # find contiguous segments on geodesic that share ground values
 # define function that takes sspath and pathgnd as input and outputs Mx2 matrix
@@ -103,7 +103,7 @@ function segments(path, ground)
     segment_ground[1] = ground[1]
     segment_length[1] = haversine(reverse(path[1,:]), reverse(path[grounddiff[1],:]), R_KM)
     for i in 2:length(segment_length)-1
-        segment_ground[i] = ground[grounddiff[i]-1]
+        segment_ground[i] = ground[grounddiff[i]]
         segment_start = path[grounddiff[i-1],:]
         segment_end = path[grounddiff[i],:]
         segment_length[i] = haversine(reverse(segment_start), reverse(segment_end), R_KM)
@@ -128,7 +128,10 @@ let fig = Figure(resolution = (1200,1200))
     lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2))
     
 
-    fa = Axis(fig[2,1], title="waveguide segments")
+    fa = Axis(fig[2,1], title="waveguide segments",
+        xlabel="sement length (km)",
+        ylabel="segment number",
+        yreversed=true)
     barplot!(fa, 1:length(segment_length), segment_length; 
         direction=:x, 
         color=segment_ground, colormap="berlin", colorrange=(-2,2))
