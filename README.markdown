@@ -15,11 +15,11 @@ In order to propagate VLF sferics over long paths, need realistic ````Ground````
 
 * ````Ground```` should be built by making a land/sea/ice mask with at least the same resolution as ````pathgrid````.  Keep only 3 ground parameter (epsilon, sigma) choices in order to maximize segment lenths.  For a uniform ionosphere, a ````SegmentedWaveguide```` can be built by calculating the great circle stroke-Rx path, then defining segments for every contiguous set of land, sea or ice mask cells traversed.
 
-````BuildWaveguide.jl```` can now construct ````SegmentedWaveguide````s based on nominal ground conductivity.  I need to run more tests, but it looks like it will be worth reducing the number of segments as much as possible.  On my Surface, a single path with 13 segments, one frequency, and 1000 ````GroundSampler```` points takes over 400 seconds to run!
-
 * Ionosphere parameters (````hprime````, ````beta````) should be determined using a day/night mask (i.e. terminator determination).  Later, probably a good idea to use more realistic ionosphere parameters that depend on local time with ~1 hour resolution.
 
 * The ````SegmentedWaveguide```` can then be built by constructing ground segments with the land/sea/ice mask, then determining whether/where the path crosses the terminator line, and splitting the segment spanning the terminator at the terminator line.  Each segment is then assigned day or night ionosphere parameters.
+
+````BuildWaveguide.jl```` can now construct ````SegmentedWaveguide````s based on nominal ground conductivity.  I need to run more tests, but it looks like it will be worth reducing the number of segments as much as possible.  On my Surface, a single path with 13 segments, one frequency, and 1000 ````GroundSampler```` points takes over 400 seconds to run!  After speeding up ground segments, I'll start working on adding segments with varying ionosphere parameters.
 
 ![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/master/LSIpath_segments_amp_phase.png?raw=true)
 
