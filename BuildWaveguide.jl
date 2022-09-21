@@ -210,5 +210,5 @@ let fig = Figure(resolution = (1200,1200))
     
 
     fig
-    #save("LSIpath_segments_amp_phase.png", fig, px_per_unit=2)
+    #save("LSIpath_segments_amp_phase.png", fig, px_per_unit=1)
 end
