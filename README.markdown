@@ -19,9 +19,9 @@ In order to propagate VLF sferics over long paths, need realistic ````Ground````
 
 * The ````SegmentedWaveguide```` can then be built by constructing ground segments with the land/sea/ice mask, then determining whether/where the path crosses the terminator line, and splitting the segment spanning the terminator at the terminator line.  Each segment is then assigned day or night ionosphere parameters.
 
-````BuildWaveguide.jl```` can now construct ````SegmentedWaveguide````s based on nominal ground conductivity.  I need to run more tests, but it looks like it will be worth reducing the number of segments as much as possible.  On my Surface, a single path with 13 segments, one frequency, and 1000 ````GroundSampler```` points takes over 400 seconds to run!  After speeding up ground segments, I'll start working on adding segments with varying ionosphere parameters.
+````BuildWaveguide.jl```` can now construct ````SegmentedWaveguide````s based on nominal ground conductivity.  I need to run more tests, but it looks like it will be worth reducing the number of segments as much as possible.  On my Surface, a single path with 13 segments, one frequency, and 1000 ````GroundSampler```` points takes over 400 seconds to run; 11 frequencies (see figure below) takes over 1200 seconds!  After speeding up ground segments, I'll start working on adding segments with varying ionosphere parameters.
 
-![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/master/LSIpath_segments_amp_phase.png?raw=true)
+![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/master/LSIpath_segments_amp_phase_freq.png?raw=true)
 
 ## Error log
 ### [Introduction to defining scenarios](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/basic/)
