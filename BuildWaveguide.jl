@@ -181,16 +181,20 @@ function varyfreq(waveguide, rx, freqs)
     return amps, phases
 end
 
-freqs = 6e3:1e3:16e3
+freqs = 6e3:1e3:24e3
 
-@time amps, phases = varyfreq(waveguide, rx_station, freqs)
+#@time amps, phases = varyfreq(waveguide, rx_station, freqs)
 # timing results (13 segments, one sample location, 11 frequencies):
-# 924.117816 seconds (2.98 G allocations: 74.082 GiB, 3.34% gc time, 0.01% compilation time)
+#   924.117816 seconds (2.98 G allocations: 74.082 GiB, 3.34% gc time, 0.01% compilation time)
 
 @time amps, phases = varyfreq(waveguide, rx, freqs)
 # timing results (13 segments, 1001 sample locations, 11 frequencies):
-# 1209.574735 seconds (2.98 G allocations: 74.082 GiB, 1.52% gc time, 0.02% compilation time)
-# interesting! number of sample locations does not impact allocations at all!
+#   1209.574735 seconds (2.98 G allocations: 74.082 GiB, 1.52% gc time, 0.02% compilation time)
+#   interesting! number of sample locations does not impact allocations at all!
+# timing results (13 segments, 1001 sample locations, 19 frequencies (6-24 kHz)):
+#   1948.517982 seconds (8.94 G allocations: 206.378 GiB, 2.05% gc time)
+#   odd that allocations increased so much; look into how higher frequencies are handled
+#   see also phase behavior differences between f<=16 kHz and f>=17 kHz
 
 
 # plot propagation path with waveguide segments
@@ -246,5 +250,5 @@ let fig = Figure(resolution = (1200,1200))
     fig[4:5, 2] = Legend(fig, fa2, "Frequency (kHz)", framevisible=false)
 
     fig
-    # save("LSIpath_segments_amp_phase_freq.png", fig, px_per_unit=1)
+    # save("LSIpath_segments_amp_phase_freq_6-24.png", fig, px_per_unit=1)
 end
