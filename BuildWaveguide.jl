@@ -10,7 +10,6 @@ using LongwaveModePropagator: QE, ME
 using MAT
 using GMT, Distances
 using GeoMakie, GLMakie
-using Printf
 
 const R_KM = 6371.8
 
