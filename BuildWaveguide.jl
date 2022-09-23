@@ -10,6 +10,7 @@ using LongwaveModePropagator: QE, ME
 using MAT
 using GMT, Distances
 using GeoMakie, GLMakie
+using Printf
 
 const R_KM = 6371.8
 
@@ -167,6 +168,31 @@ waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species, ground[i],
 # 270.606685 seconds (931.78 M allocations: 20.124 GiB, 2.25% gc time, 0.31% compilation time)
 # -> not 1001 times faster! try fewer segments
 
+# vary frequency, propagate and sample only at station
+function varyfreq(waveguide, rx, freqs)
+    amps = Vector{Vector{Float64}}(undef, length(freqs))
+    phases = Vector{Vector{Float64}}(undef, length(freqs))
+    for i in eachindex(freqs)
+        tx = Transmitter(freqs[i])
+        E, a, p = propagate(waveguide, tx, rx)
+        amps[i] = a
+        phases[i] = p
+    end
+    return amps, phases
+end
+
+freqs = 6e3:1e3:16e3
+
+@time amps, phases = varyfreq(waveguide, rx_station, freqs)
+# timing results (13 segments, one sample location, 11 frequencies):
+# 924.117816 seconds (2.98 G allocations: 74.082 GiB, 3.34% gc time, 0.01% compilation time)
+
+@time amps, phases = varyfreq(waveguide, rx, freqs)
+# timing results (13 segments, 1001 sample locations, 11 frequencies):
+# 1209.574735 seconds (2.98 G allocations: 74.082 GiB, 1.52% gc time, 0.02% compilation time)
+# interesting! number of sample locations does not impact allocations at all!
+
+
 # plot propagation path with waveguide segments
 let fig = Figure(resolution = (1200,1200))
     
@@ -175,7 +201,7 @@ let fig = Figure(resolution = (1200,1200))
 
     surface!(ga, lonmesh, latmesh, LSI; 
         colormap="broc", colorrange=(-5,5), shading=false);
-    lines!(ga, sspath; color=pathgnd, colormap="berlin", colorrange=(-2,2),
+    lines!(ga, sspath; color=pathgnd, colormap="lisbon", colorrange=(-2,2),
         linewidth=10)
     scatter!(ga, reverse(Tx); color=:green, markersize=10)
     scatter!(ga, reverse(Rx); color=:red, markersize=10)
@@ -187,28 +213,38 @@ let fig = Figure(resolution = (1200,1200))
         ylabel="segment number",
         yreversed=true)
     barplot!(fa1, 1:length(segment_length), segment_length; 
-        direction=:x, stack = [1,1,1,1,1,2,2,2,2,3,3,3,3],
-        color=segment_ground_flag, colormap="berlin", colorrange=(-2,2))
-    # make a legend!!!
-    colors = cgrad(:berlin, 5, categorical=true, rev=true)
+        direction=:x,
+        color=segment_ground_flag, colormap="lisbon", colorrange=(-2,2))
+    
+    # ground legend!
+    colors = cgrad(:lisbon, 5, categorical=true, rev=true)
     labels = ["land: 15, 1e-3", "ice:     5, 1e-5", "sea:  81, 4"]
     elements = [PolyElement(polycolor=colors[i+1]) for i in eachindex(labels)]
     title = "Ground: ϵᵣ, σ"
-    Legend(fig[3,2],elements, labels, title)
+    Legend(fig[3,2],elements, labels, title, framevisible=false)
 
-    fa2 = Axis(fig[4,1:2], title="amplitude: f = 24 kHz",
+    # amplitude and phase for each frequency
+    freqcolors = cgrad(:thermal, length(freqs)+4, categorical=true, rev=false)
+
+    fa2 = Axis(fig[4,1], title="amplitude",
         xlabel="distance (km)",
         ylabel="amplitude (dB)")
-    lines!(rx.distance/1000, a;
-        linewidth=1.5)
 
-    fa3 = Axis(fig[5,1:2], title="phase: f = 24 kHz",
+    fa3 = Axis(fig[5,1], title="phase",
         xlabel="distance (km)",
         ylabel="phase (∘)")
-    lines!(rx.distance/1000, rad2deg.(p);
-        linewidth=1.5)
+
+    for i in eachindex(freqs)
+        lines!(fa2, rx.distance/1000, amps[i];
+            linewidth=2, color=freqcolors[i+1], 
+            label=string(trunc(Int, freqs[i]/1000)))
+        lines!(fa3, rx.distance/1000, rad2deg.(phases[i]);
+            linewidth=2, color=freqcolors[i+1])
+    end
     
+    # frequency legend!
+    fig[4:5, 2] = Legend(fig, fa2, "Frequency (kHz)", framevisible=false)
 
     fig
-    #save("LSIpath_segments_amp_phase.png", fig, px_per_unit=1)
+    # save("LSIpath_segments_amp_phase_freq.png", fig, px_per_unit=1)
 end
