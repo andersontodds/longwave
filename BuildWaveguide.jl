@@ -8,13 +8,20 @@
 using LongwaveModePropagator
 using LongwaveModePropagator: QE, ME
 using MAT
-import GMT
-import Distances.haversine as haversine
 using GeoMakie
 using CairoMakie
+import GMT.geodesic as geodesic
+import Distances.haversine as haversine
 
-# in case of InitError: try Pkg.build("FFMPEG_jll").  Seems like various errors
-# are all *_jll artifacts. 
+
+# in case of InitError: try Pkg.build(jll_module), where jll_module is the 
+# module called out at the end of the InitError.
+# InitError tests:
+#   import GMT -> subsequent error on using GeoMakie, using CairoMakie
+#   using GMT  -> same error
+#   import GMT.geodesic as geodesic -> same error
+# Looks like GMT needs to imported after GeoMakie and CairoMakie.
+
 
 const R_KM = 6371.8
 
@@ -29,44 +36,44 @@ latmesh = maskstruct["lat_mesh"];
 lonmesh = maskstruct["lon_mesh"];
 LSI = maskstruct["LSI"];
 
-# GeoMakie examples
-let fig = Figure()
-    ga = GeoAxis(
-        fig[1, 1]; # any cell of the figure's layout
-        dest = "+proj=wintri", # the CRS in which you want to plot
-        coastlines = true # plot coastlines from Natural Earth, as a reference.
-    );
-    scatter!(ga, -120:15:120, -60:7.5:60; color = -60:7.5:60, strokecolor = (:black, 0.2));
-    fig
-end
+# # GeoMakie examples
+# let fig = Figure()
+#     ga = GeoAxis(
+#         fig[1, 1]; # any cell of the figure's layout
+#         dest = "+proj=wintri", # the CRS in which you want to plot
+#         coastlines = true # plot coastlines from Natural Earth, as a reference.
+#     );
+#     scatter!(ga, -120:15:120, -60:7.5:60; color = -60:7.5:60, strokecolor = (:black, 0.2));
+#     fig
+# end
 
-begin # plot variables
-    fieldlons = -180:180; 
-    fieldlats = -90:90;
-    field = [exp(cosd(lon)) + 3(lat/90) for lon in fieldlons, lat in fieldlats];
+# begin # plot variables
+#     fieldlons = -180:180; 
+#     fieldlats = -90:90;
+#     field = [exp(cosd(lon)) + 3(lat/90) for lon in fieldlons, lat in fieldlats];
 
-    img = rotr90(GeoMakie.earth());
-    land = GeoMakie.land();
-end
+#     img = rotr90(GeoMakie.earth());
+#     land = GeoMakie.land();
+# end
 
-begin fig = Figure(resolution = (1000, 1000));
+# begin fig = Figure(resolution = (1000, 1000));
 
-    ga1 = GeoAxis(fig[1, 1]; dest = "+proj=ortho", coastlines = true, lonlims = (-90, 90), title = "Orthographic\n ")
-    ga2 = GeoAxis(fig[1, 2]; dest = "+proj=moll", title = "Image of Earth\n ")
-    ga3 = GeoAxis(fig[2, 1]; coastlines = false, title = "Plotting polygons")
-    ga4 = GeoAxis(fig[2, 2]; dest = "+proj=natearth", title = "Auto limits") # you can plot geodata on regular axes too
+#     ga1 = GeoAxis(fig[1, 1]; dest = "+proj=ortho", coastlines = true, lonlims = (-90, 90), title = "Orthographic\n ")
+#     ga2 = GeoAxis(fig[1, 2]; dest = "+proj=moll", title = "Image of Earth\n ")
+#     ga3 = GeoAxis(fig[2, 1]; coastlines = false, title = "Plotting polygons")
+#     ga4 = GeoAxis(fig[2, 2]; dest = "+proj=natearth", title = "Auto limits") # you can plot geodata on regular axes too
 
-    surface!(ga1, fieldlons, fieldlats, field; colormap = :rainbow_bgyrm_35_85_c69_n256, shading = false);
-    image!(ga2, -180..180, -90..90, img; interpolate = false); # this must be included
-    poly!(ga3, land[50:100]; color = 1:51, colormap = (:plasma, 0.5));
-    poly!(ga4, land[22]); datalims!(ga4);
+#     surface!(ga1, fieldlons, fieldlats, field; colormap = :rainbow_bgyrm_35_85_c69_n256, shading = false);
+#     image!(ga2, -180..180, -90..90, img; interpolate = false); # this must be included
+#     poly!(ga3, land[50:100]; color = 1:51, colormap = (:plasma, 0.5));
+#     poly!(ga4, land[22]); datalims!(ga4);
 
-    fig
-end
+#     fig
+# end
 
 Tx = [50.0 10.0]
 Rx = [47.6062 -122.3321]
-sspath = GMT.geodesic([reverse(Tx); reverse(Rx)], step=10, unit=:k)
+sspath = geodesic([reverse(Tx); reverse(Rx)], step=10, unit=:k)
 
 gnd = function getground(loc, latmesh, lonmesh, mask)
     #loc = sspath[1:2,:]
