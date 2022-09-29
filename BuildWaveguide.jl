@@ -37,17 +37,8 @@ let fig = Figure()
         coastlines = true # plot coastlines from Natural Earth, as a reference.
     );
     scatter!(ga, -120:15:120, -60:7.5:60; color = -60:7.5:60, strokecolor = (:black, 0.2));
-    display(fig)
+    fig
 end
-
-fig = Figure()
-ga = GeoAxis(
-    fig[1, 1]; # any cell of the figure's layout
-    dest = "+proj=wintri", # the CRS in which you want to plot
-    coastlines = true # plot coastlines from Natural Earth, as a reference.
-);
-scatter!(ga, -120:15:120, -60:7.5:60; color = -60:7.5:60, strokecolor = (:black, 0.2));
-fig
 
 begin # plot variables
     fieldlons = -180:180; 
