@@ -8,8 +8,13 @@
 using LongwaveModePropagator
 using LongwaveModePropagator: QE, ME
 using MAT
-using GMT, Distances
-using GeoMakie, GLMakie
+import GMT
+import Distances.haversine as haversine
+using GeoMakie
+using CairoMakie
+
+# in case of InitError: try Pkg.build("FFMPEG_jll").  Seems like various errors
+# are all *_jll artifacts. 
 
 const R_KM = 6371.8
 
@@ -32,8 +37,17 @@ let fig = Figure()
         coastlines = true # plot coastlines from Natural Earth, as a reference.
     );
     scatter!(ga, -120:15:120, -60:7.5:60; color = -60:7.5:60, strokecolor = (:black, 0.2));
-    fig
+    display(fig)
 end
+
+fig = Figure()
+ga = GeoAxis(
+    fig[1, 1]; # any cell of the figure's layout
+    dest = "+proj=wintri", # the CRS in which you want to plot
+    coastlines = true # plot coastlines from Natural Earth, as a reference.
+);
+scatter!(ga, -120:15:120, -60:7.5:60; color = -60:7.5:60, strokecolor = (:black, 0.2));
+fig
 
 begin # plot variables
     fieldlons = -180:180; 
@@ -44,7 +58,7 @@ begin # plot variables
     land = GeoMakie.land();
 end
 
-let fig = Figure(resolution = (1000, 1000));
+begin fig = Figure(resolution = (1000, 1000));
 
     ga1 = GeoAxis(fig[1, 1]; dest = "+proj=ortho", coastlines = true, lonlims = (-90, 90), title = "Orthographic\n ")
     ga2 = GeoAxis(fig[1, 2]; dest = "+proj=moll", title = "Image of Earth\n ")
@@ -59,10 +73,9 @@ let fig = Figure(resolution = (1000, 1000));
     fig
 end
 
-
 Tx = [50.0 10.0]
 Rx = [47.6062 -122.3321]
-sspath = geodesic([reverse(Tx); reverse(Rx)], step=10, unit=:k)
+sspath = GMT.geodesic([reverse(Tx); reverse(Rx)], step=10, unit=:k)
 
 gnd = function getground(loc, latmesh, lonmesh, mask)
     #loc = sspath[1:2,:]
@@ -149,7 +162,7 @@ species = Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency
 waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species, ground[i], 
             distances[i]) for i in eachindex(distances)]);
 
-@time E, a, p = propagate(waveguide, tx, rx);
+#@time E, a, p = propagate(waveguide, tx, rx);
 # timing results 
 #   with 13 segments, tx = Transmitter(24e3); rx = GroundSampler(0:10e3:10000e3, Fields.Ez):
 # 469.944245 seconds (938.84 M allocations: 20.459 GiB, 1.69% gc time, 2.04% compilation time)
@@ -161,7 +174,7 @@ waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species, ground[i],
 #   at a range of distances including the receiver location.  Try timing the same 
 #   SegmentedWaveguide run, but with rx = GroundSampler(distance_to_station, Fields.Ez)
 
-@time E_s, a_s, p_s = propagate(waveguide, tx, rx_station)
+#@time E_s, a_s, p_s = propagate(waveguide, tx, rx_station)
 # timing results
 #   with 13 segments, tx = Transmitter(24e3); rx = GroundSampler(total_distance, Fields.Ez):
 # 270.606685 seconds (931.78 M allocations: 20.124 GiB, 2.25% gc time, 0.31% compilation time)
@@ -197,7 +210,7 @@ freqs = 6e3:1e3:24e3
 
 
 # plot propagation path with waveguide segments
-let fig = Figure(resolution = (1200,1200))
+begin fig = Figure(resolution = (1200,1200))
     
     ga = GeoAxis(fig[1:2,1:2]; coastlines = true, title = "Land-sea-ice mask",
         dest = "+proj=natearth", latlims = (40,90), lonlims = (-140, 30))
@@ -208,8 +221,8 @@ let fig = Figure(resolution = (1200,1200))
         linewidth=10)
     scatter!(ga, reverse(Tx); color=:green, markersize=10)
     scatter!(ga, reverse(Rx); color=:red, markersize=10)
-    GLMakie.text!(ga, "Tx", position = reverse(Tx), align=(:left, :top))
-    GLMakie.text!(ga, "Rx", position = reverse(Rx), align=(:left, :top))
+    text!(ga, "Tx", position = reverse(Tx), align=(:left, :top))
+    text!(ga, "Rx", position = reverse(Rx), align=(:left, :top))
 
     fa1 = Axis(fig[3,1], title="waveguide segments",
         xlabel="segment length (km)",
@@ -246,7 +259,7 @@ let fig = Figure(resolution = (1200,1200))
     end
     
     # frequency legend!
-    fig[4:5, 2] = Legend(fig, fa2, "Frequency (kHz)", framevisible=false)
+    fig[4:5, 2] = Legend(fig, fa2, "frequency (kHz)", framevisible=false)
 
     fig
     # save("LSIpath_segments_amp_phase_freq_6-24.png", fig, px_per_unit=1)
