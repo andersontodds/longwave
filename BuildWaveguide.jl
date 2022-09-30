@@ -108,22 +108,40 @@ pathgnd = getground(sspath, latmesh, lonmesh, LSI)
 # define function that takes sspath and pathgnd as input and outputs Mx2 matrix
 # representing the length and ground value of each of M segments.  check that 
 # the sum of the segment lengths is equal to the geodesic length
-function segments(path, ground)
+function segments(path, ground; segmentlimit="none")
     grounddiff = findall(abs.(diff(ground)).>0)
-    segment_length = Vector{Float64}(undef, length(grounddiff)+1)
-    segment_ground_flag = Vector{Float64}(undef, length(grounddiff)+1)
-    segment_ground = Vector{Ground}(undef, length(grounddiff)+1)
+    nsegments = length(grounddiff)+1;
+    segment_length = Vector{Float64}(undef, nsegments)
+    segment_ground_flag = Vector{Float64}(undef, nsegments)
+    segment_ground = Vector{Ground}(undef, nsegments)
+    
+    # first segment
     segment_ground_flag[1] = ground[1]
     segment_length[1] = haversine(path[1,:], path[grounddiff[1],:], R_KM)
+    # subsequent segments
     for i in 2:length(segment_length)-1
         segment_ground_flag[i] = ground[grounddiff[i]]
         segment_start = path[grounddiff[i-1],:]
         segment_end = path[grounddiff[i],:]
         segment_length[i] = haversine(segment_start, segment_end, R_KM)
     end
+    # last segment
     segment_ground_flag[end] = ground[end]
     segment_length[end] = haversine(path[grounddiff[end],:], path[end,:], R_KM)
 
+    # combine segments, starting with the shortest segment, until 
+    # number of segments <= segmentlimit and all segments are longer 
+    # than segmentminlength
+    if typeof(segmentlimit) <: Number
+        while nsegments > segmentlimit
+            # reduce number of segments:
+            #   find smallest segment
+            #   set segment mask value equal to value of adjacent segment
+            #   combine all adjacent segments that share mask values
+        end
+    end
+
+    # match segment mask values with GROUND states
     land = findall(x->x==1, segment_ground_flag)
     sea  = findall(x->x==-1, segment_ground_flag)
     ice  = findall(x->x==0, segment_ground_flag)
