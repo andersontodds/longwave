@@ -10,6 +10,8 @@ Probably best to start with the standard ````Transmitter```` and ````GroundSampl
 
 Or, try comparing the amplitude and phase of ````Transmitter```` signals sampled by a ````GroundSampler```` at many different frequencies, with the interpolated amplitude and phase from only a few different input frequencies.
 
+**9/30:** note that WWLLN saves sferic information for Sfiles that pass a dispersion fit check for 8-18 kHz.  While Sfiles contain 64 amplitude samples at 48 kHz, and therefore frequencies up to 24 kHz can be measured, it might be useful to focus on 8-18 kHz if this helps speed up the ````propagate```` run. 
+
 ### building ````SegmentedWaveguide````
 In order to propagate VLF sferics over long paths, need realistic ````Ground```` and ionosphere parameters.  To start:
 
