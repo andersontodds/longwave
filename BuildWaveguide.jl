@@ -129,6 +129,11 @@ function segments(path, ground; segmentlimit="none")
     segment_ground_flag[end] = ground[end]
     segment_length[end] = haversine(path[grounddiff[end],:], path[end,:], R_KM)
 
+    # match segment mask values with GROUND states
+    land = findall(x->x==1, segment_ground_flag)
+    sea  = findall(x->x==-1, segment_ground_flag)
+    ice  = findall(x->x==0, segment_ground_flag)
+
     # combine segments, starting with the shortest segment, until 
     # number of segments <= segmentlimit and all segments are longer 
     # than segmentminlength
@@ -141,10 +146,27 @@ function segments(path, ground; segmentlimit="none")
         end
     end
 
-    # match segment mask values with GROUND states
-    land = findall(x->x==1, segment_ground_flag)
-    sea  = findall(x->x==-1, segment_ground_flag)
-    ice  = findall(x->x==0, segment_ground_flag)
+    # TODO: add option to reduce segments to one of each different component type, 
+    # with lengths equal to the total length of that waveguide component.
+    # E.g. reduce to one land, one sea and one ice segment, where the length of the
+    # land segment is equal to the sum of the lengths of the individual land segments
+    if segmentlimit == "reduce"
+        # TODO: order these in order of appearrance on propagation path
+        segment_total_length[1] = sum(segment_length[land])
+        segment_total_length[2] = sum(segment_length[sea])
+        segment_total_length[3] = sum(segment_length[ice])
+
+        segment_total_ground[1] = Ref(GROUND[5])
+        segment_total_ground[2] = Ref(GROUND[10])
+        segment_total_ground[3] = Ref(GROUND[1])
+
+        segment_total_ground_flag[1] = 1;
+        segment_total_ground_flag[1] = -1;
+        segment_total_ground_flag[1] = 0;
+    end
+
+
+    
 
     segment_ground[land].= Ref(GROUND[5])
     segment_ground[sea] .= Ref(GROUND[10])
