@@ -224,7 +224,7 @@ function varyfreq(waveguide, rx, freqs)
     phases = Vector{Vector{Float64}}(undef, length(freqs))
     for i in eachindex(freqs)
         tx = Transmitter(freqs[i])
-        E, a, p = propagate(waveguide, tx, rx)
+        E, a, p = propagate(waveguide, tx, rx);
         amps[i] = a
         phases[i] = p
     end

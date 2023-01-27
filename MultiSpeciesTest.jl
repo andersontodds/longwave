@@ -52,8 +52,8 @@ ground = GROUND[10]
 ewg = HomogeneousWaveguide(bfield, electrons, ground)
 eiwg = HomogeneousWaveguide(bfield, (electrons, posions, negions), ground)
 
-Ee, ae, pe = propagate(ewg, tx, rx)
-Eei, aei, pei = propagate(eiwg, tx, rx)
+Ee, ae, pe = propagate(ewg, tx, rx);
+Eei, aei, pei = propagate(eiwg, tx, rx);
 
 p1 = plot(rx.distance/1000, ae; 
     label="elecrons", ylabel="Amplitude (dB μV/m)", xaxis=false);
