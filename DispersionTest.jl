@@ -19,14 +19,15 @@ ground = Ground(10,1e-4)
 bfield = BField(50e-6, π/2, 0)
 
 # define waveguide
-distances = [0.0, 2500e3]
+distances = [0.0, 4000e3]
 species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
 
 waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species[i], ground, 
             distances[i]) for i in 1:2]);
 
-rx = GroundSampler(0:10e3:5000e3, Fields.Ez);
+proprange = 5000e3;
+rx = GroundSampler(0:10e3:proprange, Fields.Ez);
 
 # vary frequency, propagate and sample only at station
 function varyfreq(waveguide, rx, freqs)
@@ -98,6 +99,10 @@ begin fig = Figure(resolution = (1200,1200))
     axislegend(fa3)
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
+    # supertitle = Label(fig[0, :], "ω₀/2c = ")
     fig
     # save("LSIpath_segments_amp_phase_freq_6-24.png", fig, px_per_unit=1)
 end
+
+# "dispersion parameter"
+finalphasefit.param[3]/proprange
