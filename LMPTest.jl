@@ -7,6 +7,7 @@
 
 using LongwaveModePropagator
 using LongwaveModePropagator: QE, ME
+using Suppressor
 using Plots
 
 # vertical dipole transmitter at 24 kHz
@@ -30,7 +31,7 @@ ground = Ground(10,1e-4)
 waveguide = HomogeneousWaveguide(bfield, electrons, ground)
 
 # return the complex electric field, amplitude, and phase
-E, a, p = propagate(waveguide, tx, rx);
+@time @suppress E, a, p = propagate(waveguide, tx, rx);
 
 plot(rx.distance/1000, a; 
     xlabel="distance (km)", ylabel="amplitude (dB)", 

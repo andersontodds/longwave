@@ -4,6 +4,7 @@
 using LongwaveModePropagator
 using LongwaveModePropagator: QE, ME
 using LsqFit
+using Suppressor
 using CairoMakie
 
 # simple SegmentedWaveguide example with 2 segments
@@ -14,6 +15,7 @@ h2 = 82     # km
 
 # "typical" earth ground 
 ground = Ground(10,1e-4)
+# ground = Ground(81, 4.0)
 
 # vertical magnetic field
 bfield = BField(50e-6, π/2, 0)
@@ -43,10 +45,10 @@ function varyfreq(waveguide, rx, freqs)
 end
 
 # fit phase dispersion to final phases
-function phasefit(freqs, phases)
+function phasefit(freqs, phases; p0 = [1E-6, 0, 0.5])
 
     @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
-    p0 = [1E-6, 0, 0.5]
+    #p0 = [1E-6, 0, 0.5]
     fit = curve_fit(model, freqs, phases, p0)
     fit
 
@@ -54,13 +56,22 @@ end
 
 # run broadband propagation
 freqs = 6e3:1e3:18e3;
-@time amps, phases = varyfreq(waveguide, rx, freqs);
+ωfreqs = 2*pi*freqs;
+@time @suppress amps, phases = varyfreq(waveguide, rx, freqs);
 
+# fit curve to final phase
 finalphase = [phases[i][end] for i in eachindex(freqs)];
+finalphasefit = phasefit(ωfreqs, finalphase)
+finalphasecurve = finalphasefit.param[1].*ωfreqs .+ finalphasefit.param[2] .+ finalphasefit.param[3]./(ωfreqs);
 
-finalphasefit = phasefit(freqs, finalphase)
-finalphasecurve = finalphasefit.param[1].*freqs .+ finalphasefit.param[2] .+ finalphasefit.param[3]./freqs;
-
+# generate simulated sferic
+# change this to model from Dowden 2002 eqns (8) and (9)
+x = 0:1E-5:1E-3; # time in seconds
+waveform = Vector{Float64}(undef, length(x));
+for j in eachindex(freqs)
+    component = amps[j][end]*sin.(ωfreqs[j]*x);
+    waveform = waveform + component;
+end
 
 # plot propagation path with waveguide segments
 begin fig = Figure(resolution = (1200,1200))
@@ -80,6 +91,10 @@ begin fig = Figure(resolution = (1200,1200))
         xlabel="frequency (kHz)",
         ylabel="phase (∘)")    
 
+    fa4 = Axis(fig[3,1:3], title="waveform",
+        xlabel="time (s)",
+        ylabel="amplitude (dB)")
+
     for i in eachindex(freqs)
         lines!(fa1, rx.distance/1000, amps[i];
             linewidth=2, color=freqcolors[i+1], 
@@ -88,12 +103,16 @@ begin fig = Figure(resolution = (1200,1200))
             linewidth=2, color=freqcolors[i+1])
     end
     
-    lines!(fa3, freqs/1000, rad2deg.(phases[i][end] for i in eachindex(freqs));
+    scatter!(fa3, freqs/1000, rad2deg.(phases[i][end] for i in eachindex(freqs));
         linewidth=2, color="black",
         label="measured phase")
     lines!(fa3, freqs/1000, rad2deg.(finalphasecurve);
         linewidth=2, linestyle="-", color="red",
         label = "phase fit")
+
+    lines!(fa4, x, waveform;
+        linewidth=2, color="black",
+        label="waveform")
 
     # legends
     axislegend(fa3)
