@@ -7,6 +7,9 @@ using LsqFit
 using Suppressor
 using CairoMakie
 
+c = 2.99792458e8    # ms⁻¹
+v_p = 0.9905*c      # speed of light in the EIWG
+
 # simple SegmentedWaveguide example with 2 segments
 h1 = 75     # km
 β1 = 0.35   # km⁻¹
@@ -21,7 +24,7 @@ ground = Ground(10,1e-4)
 bfield = BField(50e-6, π/2, 0)
 
 # define waveguide
-distances = [0.0, 4000e3]
+distances = [0.0, 1000e3]
 species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
 
@@ -57,7 +60,7 @@ end
 # run broadband propagation
 freqs = 6e3:1e3:18e3;
 ωfreqs = 2*pi*freqs;
-@time @suppress amps, phases = varyfreq(waveguide, rx, freqs);
+@time amps, phases = varyfreq(waveguide, rx, freqs);
 
 # fit curve to final phase
 finalphase = [phases[i][end] for i in eachindex(freqs)];
@@ -66,10 +69,10 @@ finalphasecurve = finalphasefit.param[1].*ωfreqs .+ finalphasefit.param[2] .+ f
 
 # generate simulated sferic
 # change this to model from Dowden 2002 eqns (8) and (9)
-x = 0:1E-5:1E-3; # time in seconds
-waveform = Vector{Float64}(undef, length(x));
+t = 0:1E-5:1E-3; # time in seconds
+waveform = Vector{Float64}(undef, length(t));
 for j in eachindex(freqs)
-    component = amps[j][end]*sin.(ωfreqs[j]*x);
+    component = amps[j][end]*cos.(ωfreqs[j]*(t.-proprange/v_p));
     waveform = waveform + component;
 end
 
@@ -110,7 +113,7 @@ begin fig = Figure(resolution = (1200,1200))
         linewidth=2, linestyle="-", color="red",
         label = "phase fit")
 
-    lines!(fa4, x, waveform;
+    lines!(fa4, t, waveform;
         linewidth=2, color="black",
         label="waveform")
 
@@ -124,4 +127,5 @@ begin fig = Figure(resolution = (1200,1200))
 end
 
 # "dispersion parameter"
-finalphasefit.param[3]/proprange
+c3 = finalphasefit.param[3]/proprange
+f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
