@@ -4,11 +4,21 @@ Testing out @fgasdia's [LongwaveModePropagator.jl](https://github.com/fgasdia/Lo
 
 ## To do
 ### lightning sferics
-Need to figure out how best to use LongwaveModePropagator for wideband "transmitters".  The goal should be to minimize the number of ````propagate()```` calls.  
+Here's where I am as of 2/17:
 
-Probably best to start with the standard ````Transmitter```` and ````GroundSampler```` example and vary frequency, then see if we can fit an empirical function to amplitude and phase as a function of frequency and distance.
+![broadband amplitude and phase](https://github.com/andersontodds/longwave/blob/master/sample_sferic_dispersion.png?raw=true)
 
-Or, try comparing the amplitude and phase of ````Transmitter```` signals sampled by a ````GroundSampler```` at many different frequencies, with the interpolated amplitude and phase from only a few different input frequencies.
+This figure was generated using ````DispersionTest.jl````, which does the following:
+* build ````SegmentedWaveguide```` with two segments
+* ````propagate```` frequencies in 6-18 kHz over the two segments, record amplitude and phase
+* fit phase as a function of frequency to final phases, calculate waveguide cutoff frequency
+* build synthetic sferic following Dowden et al. 2002
+* adjust synthetic sferic amplitudes with LMP-propagated amplitudes, and build simulated sferic
+* plot everything
+
+Two more lines of inquiry:
+1. How many frequencies need to be propagated to get a "good" phase fit?
+2. What is the best way to speed up the ````propagate```` call with minimal impact on the accuracy of the sferic phase fit?
 
 **9/30:** note that WWLLN saves sferic information for Sfiles that pass a dispersion fit check for 8-18 kHz.  While Sfiles contain 64 amplitude samples at 48 kHz, and therefore frequencies up to 24 kHz can be measured, it might be useful to focus on 8-18 kHz if this helps speed up the ````propagate```` run. 
 
