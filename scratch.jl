@@ -41,7 +41,7 @@ t = tᵣ .+ r/c;
 ω₀ = 2*pi*1.6e3;    # waveguide cutoff frequency
 
 A = (cos.(pi*(ωf.-ωₐ)./(2*ωᵣ))).^2
-waveform = Vector{Float64}(undef, length(t));
+waveform = zeros(length(t));
 for ω in eachindex(ωf)
     component = A[ω].*cos.(ωf[ω].*(t.-(r/c)*(1 - (ω₀^2)/(ωf[ω]^2))^(1/2)))
     waveform = waveform + component;
