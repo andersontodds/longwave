@@ -12,13 +12,19 @@ c = 2.99792458e8    # ms⁻¹
 v_g = 0.9905*c      # speed of light in the EIWG
 
 # simple SegmentedWaveguide example with 2 segments
-h1 = 75     # km
-β1 = 0.35   # km⁻¹
-h2 = 82     # km
-β2 = 0.5    # km⁻¹
+# h1 = 75     # km
+# β1 = 0.35   # km⁻¹
+# h2 = 82     # km
+# β2 = 0.5    # km⁻¹
 
-h = h2;
-β = β2;
+h2 = 75     # km
+β2 = 0.35   # km⁻¹
+h1 = 82     # km
+β1 = 0.5    # km⁻¹
+
+
+# h = h2;
+# β = β2;
 
 # "typical" earth ground 
 ground = Ground(10,1e-4)
@@ -32,13 +38,13 @@ distances = [0.0, 2500e3]
 species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
 
-# waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species[i], ground, 
-            # distances[i]) for i in 1:2]);
+waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species[i], ground, 
+            distances[i]) for i in 1:2]);
 
-waveguide = HomogeneousWaveguide(bfield, species[2], ground,
-            distances[2]);
+# waveguide = HomogeneousWaveguide(bfield, species[2], ground,
+#             distances[2]);
 
-proprange = 1000e3;
+proprange = 5000e3;
 rx = GroundSampler(0:10e3:proprange, Fields.Ez);
 
 # vary frequency, propagate and sample only at station
@@ -174,7 +180,7 @@ begin fig = Figure(resolution = (1200,1200))
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
     # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    superstr = @sprintf("Broadband sferic propagation\n segment 1: h' = %.1f km, β = %.1f km⁻¹", h, β)
+    superstr = @sprintf("Broadband sferic propagation\n segment 1: h' = %.1f km, β = %.1f km⁻¹\n segment 1: h' = %.1f km, β = %.1f km⁻¹", h1, β1, h2, β2)
     supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
     # save("sample_sferic_dispersion.png", fig, px_per_unit=1)
@@ -183,3 +189,4 @@ end
 # "dispersion parameter"
 c3 = finalphasefit.param[3]/proprange
 f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
+# f₀_dn
