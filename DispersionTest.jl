@@ -17,6 +17,9 @@ h1 = 75     # km
 h2 = 82     # km
 β2 = 0.5    # km⁻¹
 
+h = h2;
+β = β2;
+
 # "typical" earth ground 
 ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
@@ -29,10 +32,13 @@ distances = [0.0, 2500e3]
 species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
 
-waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species[i], ground, 
-            distances[i]) for i in 1:2]);
+# waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species[i], ground, 
+            # distances[i]) for i in 1:2]);
 
-proprange = 5000e3;
+waveguide = HomogeneousWaveguide(bfield, species[2], ground,
+            distances[2]);
+
+proprange = 1000e3;
 rx = GroundSampler(0:10e3:proprange, Fields.Ez);
 
 # vary frequency, propagate and sample only at station
@@ -100,8 +106,10 @@ for j in eachindex(freqs)
 end
 
 # normalize waveforms
-waveform = waveform./length(ωfreqs);
-waveform_syn = waveform_syn./length(ωfreqs);
+# waveform = waveform./length(ωfreqs);
+# waveform_syn = waveform_syn./length(ωfreqs);
+waveform = waveform./maximum(abs.(waveform));
+waveform_syn = waveform_syn./maximum(abs.(waveform_syn));
 
 # plot propagation path with waveguide segments
 begin fig = Figure(resolution = (1200,1200))
@@ -126,14 +134,14 @@ begin fig = Figure(resolution = (1200,1200))
         ylabel="amplitude (normalized)")
 
     ylims_fa1 = [-30, 90];
-    lines!(fa1, [distances[2]/1000, distances[2]/1000], ylims_fa1; color="gray")
-    ylims!(fa1, ylims_fa1);
-    xlims!(fa1, [0, 5000]);
+    # lines!(fa1, [distances[2]/1000, distances[2]/1000], ylims_fa1; color="gray")
+    # ylims!(fa1, ylims_fa1);
+    xlims!(fa1, [0, proprange/1e3]);
 
     ylims_fa2 = [-400, 400];
-    lines!(fa2, [distances[2]/1000, distances[2]/1000], ylims_fa2; color="gray")
-    ylims!(fa2, ylims_fa2);
-    xlims!(fa2, [0, 5000]);
+    # lines!(fa2, [distances[2]/1000, distances[2]/1000], ylims_fa2; color="gray")
+    # ylims!(fa2, ylims_fa2);
+    xlims!(fa2, [0, proprange/1e3]);
 
     for i in eachindex(freqs)
         lines!(fa1, rx.distance/1000, amps[i];
@@ -165,7 +173,9 @@ begin fig = Figure(resolution = (1200,1200))
     axislegend(fa4)
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
-    supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h = 82 km, β = 0.50 km⁻¹"; fontsize=20)
+    # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
+    superstr = @sprintf("Broadband sferic propagation\n segment 1: h' = %.1f km, β = %.1f km⁻¹", h, β)
+    supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
     # save("sample_sferic_dispersion.png", fig, px_per_unit=1)
 end
