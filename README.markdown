@@ -6,7 +6,7 @@ Testing out @fgasdia's [LongwaveModePropagator.jl](https://github.com/fgasdia/Lo
 ### lightning sferics
 Here's where I am as of 2/17:
 
-![broadband amplitude and phase](https://github.com/andersontodds/longwave/blob/master/sample_sferic_dispersion.png?raw=true)
+![broadband amplitude and phase](https://github.com/andersontodds/longwave/blob/main/sample_sferic_dispersion.png?raw=true)
 
 This figure was generated using ````DispersionTest.jl````, which does the following:
 * build ````SegmentedWaveguide```` with two segments
@@ -33,7 +33,7 @@ In order to propagate VLF sferics over long paths, need realistic ````Ground````
 
 ````BuildWaveguide.jl```` can now construct ````SegmentedWaveguide````s based on nominal ground conductivity.  I need to run more tests, but it looks like it will be worth reducing the number of segments as much as possible.  On my Surface, a single path with 13 segments, one frequency, and 1000 ````GroundSampler```` points takes over 400 seconds to run; 19 frequencies (see figure below) takes over 1900 seconds!  After speeding up ground segments, I'll start working on adding segments with varying ionosphere parameters.
 
-![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/master/LSIpath_segments_amp_phase_freq_6-24.png?raw=true)
+![single propagation path segments, amplitude and phase](https://github.com/andersontodds/longwave/blob/main/LSIpath_segments_amp_phase_freq_6-24.png?raw=true)
 
 ## Error log
 ### [Introduction to defining scenarios](https://fgasdia.github.io/LongwaveModePropagator.jl/dev/generated/basic/)
