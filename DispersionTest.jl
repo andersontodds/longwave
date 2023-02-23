@@ -12,16 +12,15 @@ c = 2.99792458e8    # ms⁻¹
 v_g = 0.9905*c      # speed of light in the EIWG
 
 # simple SegmentedWaveguide example with 2 segments
-# h1 = 75     # km
-# β1 = 0.35   # km⁻¹
-# h2 = 82     # km
-# β2 = 0.5    # km⁻¹
-
-h2 = 75     # km
-β2 = 0.35   # km⁻¹
-h1 = 82     # km
+h2 = 74     # km
+β2 = 0.3   # km⁻¹
+h1 = 87     # km
 β1 = 0.5    # km⁻¹
 
+# h2 = 75     # km
+# β2 = 0.35   # km⁻¹
+# h1 = 82     # km
+# β1 = 0.5    # km⁻¹
 
 # h = h2;
 # β = β2;
@@ -61,11 +60,14 @@ function varyfreq(waveguide, rx, freqs)
 end
 
 # fit phase dispersion to final phases
-function phasefit(freqs, phases; p0 = [1E-6, 0, 0.5])
+# TODO: replace with iterfit() from scratch.jl
+function phasefit(freqs, phases; p0 = [1E-6, 0.1, 0.5])
 
     @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
-    #p0 = [1E-6, 0, 0.5]
-    fit = curve_fit(model, freqs, phases, p0)
+    # bounds
+    lb = [-Inf, -Inf, 0];
+    ub = [Inf, Inf, Inf];
+    fit = curve_fit(model, freqs, phases, p0, lower=lb, upper=ub)
     fit
 
 end
@@ -189,4 +191,4 @@ end
 # "dispersion parameter"
 c3 = finalphasefit.param[3]/proprange
 f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
-# f₀_dn
+f₀_dn

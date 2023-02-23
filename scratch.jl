@@ -1,60 +1,72 @@
-# test DifferentialEquations.jl deprecation warning
-# example from: https://docs.sciml.ai/DiffEqDocs/stable/examples/classical_physics/
+# iteratively exclude data from fit until fit error is below threshold
+using LsqFit
 
-using DifferentialEquations
-using BenchmarkTools
-using Suppressor
-using CairoMakie
+# data from longwave/DispersionTest.jl
+ωf = [2*pi*(6e3:1e3:18e3);];
+ϕ = [   5.840479829632033
+            3.7609869647037457
+            8.513717721555789
+            7.0863922989541015
+           -0.35831763785328985
+            5.149585430769938
+            4.344839597842935
+            9.638081754389809
+            8.942412906068212
+            1.9855723961852674
+            1.398661708163204
+            1.1841425901930442
+            0.7130530291814566];
+r = 5000e3;
+thres = r/50; # maybe put a bit more thought into threshold choice
 
-#Half-life of Carbon-14 is 5,730 years.
-C₁ = 5.730
+function iterfit(xdata, ydata, thres)
 
-#Setup
-u₀ = 1.0
-tspan = (0.0, 1.0)
-
-#Define the problem
-radioactivedecay(u,p,t) = -C₁*u
-
-#Pass to solver
-prob = ODEProblem(radioactivedecay,u₀,tspan)
-@time sol = solve(prob,Tsit5());
-# throws warning with following versions:
-# OrdinaryDiffEq v6.27.2
-# DifferentialEquations v7.6.0
-
-
-## plot simulated sferics from Dowden 2002
-
-r = 10000e3
-c = 2.99792458e8    # ms⁻¹
-v_g = 0.9905*c      # speed of light in the EIWG
-
-r/v_g
-
-tᵣ = -0.2e-3:1e-6:1e-3;
-t = tᵣ .+ r/c;
-ωf = 2*pi*(2e3:2e2:24e3);
-# ωf = 2*pi*7e3
-ωₐ = 2*pi*14e3;     # frequency of peak spectral density: ~12 kHz
-ωᵣ = 2*pi*11e3;     # tune this
-ω₀ = 2*pi*1.6e3;    # waveguide cutoff frequency
-
-A = (cos.(pi*(ωf.-ωₐ)./(2*ωᵣ))).^2
-waveform = zeros(length(t));
-for ω in eachindex(ωf)
-    component = A[ω].*cos.(ωf[ω].*(t.-(r/c)*(1 - (ω₀^2)/(ωf[ω]^2))^(1/2)))
-    waveform = waveform + component;
+    @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
+    # bounds
+    lb = [-Inf, -Inf, 0];
+    ub = [Inf, Inf, Inf];
+    p0 = [1E-6, 0.1, thres];
+    # set up loop conditions
+    xin = copy(xdata); # can remove these if preserving original data is not important
+    yin = copy(ydata);
+    xout = Vector{Float64}(undef, 0);
+    yout = Vector{Float64}(undef, 0);
+    fit = curve_fit(model, xin, yin, p0, lower=lb, upper=ub)
+    sigma = stderror(fit)[3]
+    while sigma > thres
+        out = findmax(abs.(fit.resid));
+        push!(xout, xin[out[2]]);
+        push!(yout, yin[out[2]]);
+        popat!(xin, out[2]);
+        popat!(yin, out[2]);
+        fit = curve_fit(model, xin, yin, p0, lower=lb, upper=ub)
+        sigma = stderror(fit)[3] 
+    end
+    fit, xin, yin, xout, yout
 end
 
+xyfit, xin, yin, xout, yout = iterfit(ωf, ϕ, thres);
+fitcurve = xyfit.param[1].*ωf .+ xyfit.param[2] .+ xyfit.param[3]./(ωf);
+fit_f₀ = (xyfit.param[3]*2*c/r)^(1/2)/(2*pi);
+
 begin fig = Figure()
-    fa = Axis(fig[1,1];
-        xlabel="t - r/c (s)",
-        ylabel="E (arbitrary units)",
-        title="dispersion")
-    # xlims!(fa, [minimum(tᵣ) maximum(tᵣ)])
-    xlims!(fa, [-0.2e-3 1e-3])
-    ylims!(fa, [-100 100])
-    lines!(fa, tᵣ, waveform)
+    fa = Axis(fig[1, 1], title=@sprintf("phase fit at r = %d km\nf₀ = %.2f kHz", r/1e3, fit_f₀/1e3),
+        xlabel="frequency (kHz)",
+        ylabel="phase (∘)")
+
+    scatter!(fa, xin./(2*pi*1000), rad2deg.(yin);
+        linewidth=2, color="black",
+        label="in")
+
+    scatter!(fa, xout./(2*pi*1000), rad2deg.(yout);
+        linewidth=2, color="red",
+        label="out")
+
+    lines!(fa, ωf/(2*pi*1000), rad2deg.(fitcurve);
+        linewidth=2, linestyle="-", color="black",
+        label = "phase fit")
+
+    axislegend()
+    
     fig
 end
