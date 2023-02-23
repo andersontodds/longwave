@@ -12,10 +12,10 @@ c = 2.99792458e8    # ms⁻¹
 v_g = 0.9905*c      # speed of light in the EIWG
 
 # simple SegmentedWaveguide example with 2 segments
-h2 = 74     # km
-β2 = 0.3   # km⁻¹
-h1 = 87     # km
-β1 = 0.5    # km⁻¹
+h1 = 74     # km
+β1 = 0.3   # km⁻¹
+h2 = 87     # km
+β2 = 0.5    # km⁻¹
 
 # h2 = 75     # km
 # β2 = 0.35   # km⁻¹
@@ -29,8 +29,8 @@ h1 = 87     # km
 ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
 
-# vertical magnetic field
-bfield = BField(50e-6, π/2, 0)
+# magnetic field: magnitude, dip (from vertical), azimuth (from north)
+bfield = BField(50e-6, π/3, 0)
 
 # define waveguide
 distances = [0.0, 2500e3]
@@ -72,6 +72,32 @@ function phasefit(freqs, phases; p0 = [1E-6, 0.1, 0.5])
 
 end
 
+function iterfit(xdata, ydata, thres)
+
+    @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
+    # bounds
+    lb = [-Inf, -Inf, 0];
+    ub = [Inf, Inf, Inf];
+    p0 = [1E-6, 0.1, thres];
+    # set up loop conditions
+    xin = copy(xdata); # can remove these if preserving original data is not important
+    yin = copy(ydata);
+    xout = Vector{Float64}(undef, 0);
+    yout = Vector{Float64}(undef, 0);
+    fit = curve_fit(model, xin, yin, p0, lower=lb, upper=ub)
+    sigma = stderror(fit)[3]
+    while sigma > thres
+        out = findmax(abs.(fit.resid));
+        push!(xout, xin[out[2]]);
+        push!(yout, yin[out[2]]);
+        popat!(xin, out[2]);
+        popat!(yin, out[2]);
+        fit = curve_fit(model, xin, yin, p0, lower=lb, upper=ub)
+        sigma = stderror(fit)[3] 
+    end
+    fit, xin, yin, xout, yout
+end
+
 # run broadband propagation
 freqs = 6e3:1e3:18e3;
 ωfreqs = 2*pi*freqs;
@@ -79,7 +105,8 @@ freqs = 6e3:1e3:18e3;
 
 # fit curve to final phase
 finalphase = [phases[i][end] for i in eachindex(freqs)];
-finalphasefit = phasefit(ωfreqs, finalphase)
+# finalphasefit = phasefit(ωfreqs, finalphase)
+finalphasefit, ωin, ϕin, ωout, ϕout = iterfit([ωfreqs;], finalphase, proprange/50);
 finalphasecurve = finalphasefit.param[1].*ωfreqs .+ finalphasefit.param[2] .+ finalphasefit.param[3]./(ωfreqs);
 ωₒ = (finalphasefit.param[3]*2*c/proprange)^(1/2)
 
@@ -118,6 +145,11 @@ end
 # waveform_syn = waveform_syn./length(ωfreqs);
 waveform = waveform./maximum(abs.(waveform));
 waveform_syn = waveform_syn./maximum(abs.(waveform_syn));
+
+# "dispersion parameter"
+c3 = finalphasefit.param[3]/proprange
+f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
+# f₀_dn
 
 # plot propagation path with waveguide segments
 begin fig = Figure(resolution = (1200,1200))
@@ -159,11 +191,14 @@ begin fig = Figure(resolution = (1200,1200))
             linewidth=2, color=freqcolors[i+1])
     end
 
-    scatter!(fa3, freqs/1000, rad2deg.(phases[i][end] for i in eachindex(freqs));
+    scatter!(fa3, ωin/(2*pi*1000), rad2deg.(ϕin);
         linewidth=2, color="black",
         label="measured phase")
+    scatter!(fa3, ωout/(2*pi*1000), rad2deg.(ϕout);
+        linewidth=2, color="red",
+        label="outliers")
     lines!(fa3, freqs/1000, rad2deg.(finalphasecurve);
-        linewidth=2, linestyle="-", color="red",
+        linewidth=2, linestyle="-", color="black",
         label = "phase fit")
 
     lines!(fa4, tᵣ.*1e3, waveform;
@@ -182,13 +217,8 @@ begin fig = Figure(resolution = (1200,1200))
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
     # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    superstr = @sprintf("Broadband sferic propagation\n segment 1: h' = %.1f km, β = %.1f km⁻¹\n segment 1: h' = %.1f km, β = %.1f km⁻¹", h1, β1, h2, β2)
+    superstr = @sprintf("Broadband sferic propagation\n segment 1: h' = %.1f km, β = %.1f km⁻¹\n segment 1: h' = %.1f km, β = %.1f km⁻¹\nf₀ = %.2f kHz", h1, β1, h2, β2, f₀/1e3)
     supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
     # save("sample_sferic_dispersion.png", fig, px_per_unit=1)
 end
-
-# "dispersion parameter"
-c3 = finalphasefit.param[3]/proprange
-f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
-f₀_dn
