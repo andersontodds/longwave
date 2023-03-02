@@ -30,14 +30,14 @@ ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
 
 # magnetic field: magnitude, dip (from vertical), azimuth (from north)
-bfield = BField(50e-6, π/3, 0)
+bfield = BField.(50e-6, [π/3, π/2], 0)
 
 # define waveguide
 distances = [0.0, 2500e3]
 species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
 
-waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield, species[i], ground, 
+waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield[i], species[i], ground, 
             distances[i]) for i in 1:2]);
 
 # waveguide = HomogeneousWaveguide(bfield, species[2], ground,
@@ -133,10 +133,10 @@ for j in eachindex(freqs)
     # component = amps[j][end]*cos.(ωfreqs[j]*(t.-proprange/v_g));
     
     component = A[j]*cos.(ωfreqs[j].*(t.-(r/c)*(1 - ωₒ^2/ωfreqs[j]^2)^(1/2)))
-    waveform = waveform + component;
+    global waveform = waveform + component;
 
     component_syn = Aₒ[j]*cos.(ωfreqs[j].*(t.-(r/c)*(1 - (ω₀_syn^2)/(ωfreqs[j]^2))^(1/2)))
-    waveform_syn = waveform_syn + component_syn;
+    global waveform_syn = waveform_syn + component_syn;
 
 end
 
