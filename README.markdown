@@ -12,7 +12,7 @@ This figure was generated using ````DispersionTest.jl````, which does the follow
 * build ````SegmentedWaveguide```` with two segments
 * ````propagate```` frequencies in 6-18 kHz over the two segments, record amplitude and phase
 * fit phase as a function of frequency to final phases, calculate waveguide cutoff frequency
-* build synthetic sferic following Dowden et al. 2002
+* build synthetic sferic following [Dowden et al. (2002)](https://doi.org/10.1016/S1364-6826(02)00085-8)
 * adjust synthetic sferic amplitudes with LMP-propagated amplitudes, and build simulated sferic
 * plot everything
 
