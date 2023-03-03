@@ -383,26 +383,34 @@ begin fig = Figure(resolution = (1200,800))
     ga2 = GeoAxis(fig[2,1]; coastlines = true, title = "ϵᵣ",
         dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
 
-    ga3 = GeoAxis(fig[1,2]; coastlines = true, title = "h'",
+    ga3 = GeoAxis(fig[1,3]; coastlines = true, title = "h'",
         dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
     
-    ga4 = GeoAxis(fig[2,2]; coastlines = true, title = "β",
+    ga4 = GeoAxis(fig[2,3]; coastlines = true, title = "β",
         dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
 
-    surface!(ga1, lonmesh, latmesh, log10.(sigmamap); 
-        colormap=Reverse(:broc), shading=false);
+    sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
+        colormap=cgrad(:darkterrain, rev = true), shading=false);
+    cb1 = Colorbar(fig[1,2], sf1; label = "log10(σ / S m⁻¹)", height = Relative(0.65)) # check units
 
-    surface!(ga2, lonmesh, latmesh, epsilonmap; 
-        colormap=Reverse(:vik), shading=false);
+    # TODO: change colorbar scaling
+    epscolors = cgrad(:vik, rev=true, 100, categorical=true)
+    epscolormap = epscolors[sort(unique(epsilonmap))]
+    sf2 = contourf!(ga2, lonrange, latrange, epsilonmap';
+        colormap=epscolormap, levels = vcat(0,sort(unique(epsilonmap.+1))), shading=false);
+    cb2 = Colorbar(fig[2,2], sf2; label = "F m⁻¹", height = Relative(0.65), ticks = sort(unique(epsilonmap))) # check units
 
-    surface!(ga3, lonmesh, latmesh, hmap; 
+    sf3 = surface!(ga3, lonmesh, latmesh, hmap; 
         colormap=Reverse(:tokyo), shading=false);
+    cb3 = Colorbar(fig[1,4], sf3; label = "km", height = Relative(0.65))
 
-    surface!(ga4, lonmesh, latmesh, βmap; 
+    sf4 = surface!(ga4, lonmesh, latmesh, βmap; 
         colormap=Reverse(:oslo), shading=false);
+    cb4 = Colorbar(fig[2,4], sf4; label = "km⁻¹", height = Relative(0.65))
 
     superstr = @sprintf("Global waveguide parameters\n%s",dt)
     supertitle = Label(fig[0, :], superstr; fontsize=20)
 
     fig
 end
+
