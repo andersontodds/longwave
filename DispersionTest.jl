@@ -3,6 +3,8 @@
 
 using LongwaveModePropagator
 using LongwaveModePropagator: QE, ME
+using LMPTools
+using GeographicLib
 using LsqFit
 #using Suppressor
 using CairoMakie
@@ -11,28 +13,19 @@ using Printf
 c = 2.99792458e8    # ms⁻¹
 v_g = 0.9905*c      # speed of light in the EIWG
 
-# simple SegmentedWaveguide example with 2 segments
+# magnetic field: magnitude, dip (from vertical), azimuth (from north)
+bfield = BField.(50e-6, [π/3, π/2], 0)
+
+# define waveguide
+# 1. two-segment model
 h1 = 74     # km
 β1 = 0.3   # km⁻¹
 h2 = 87     # km
 β2 = 0.5    # km⁻¹
 
-# h2 = 75     # km
-# β2 = 0.35   # km⁻¹
-# h1 = 82     # km
-# β1 = 0.5    # km⁻¹
-
-# h = h2;
-# β = β2;
-
 # "typical" earth ground 
 ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
-
-# magnetic field: magnitude, dip (from vertical), azimuth (from north)
-bfield = BField.(50e-6, [π/3, π/2], 0)
-
-# define waveguide
 distances = [0.0, 2500e3]
 species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
@@ -40,27 +33,63 @@ species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequen
 waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield[i], species[i], ground, 
             distances[i]) for i in 1:2]);
 
-# waveguide = HomogeneousWaveguide(bfield, species[2], ground,
-#             distances[2]);
-
 proprange = 5000e3;
 rx = GroundSampler(0:10e3:proprange, Fields.Ez);
 
-# vary frequency, propagate and sample only at station
+# 2. Ferguson 1980/LWPC-type waveguide
+dt = DateTime(2022, 11, 07, 15,00,00)
+txlat, txlon = [10, 10];
+rxlat, rxlon = [47.6543, -122.3083]; # seattle
+
+# vary frequency, propagate
+# TODO March 3-5:
+# 1. check possible mode precomputation strategies
+# 2. resolve GroundSampler distance resolution influence on final propagate results
+#    → see source code for propagate, modefinder.jl, ...
 function varyfreq(waveguide, rx, freqs)
     amps = Vector{Vector{Float64}}(undef, length(freqs))
     phases = Vector{Vector{Float64}}(undef, length(freqs))
+    # precompute waveguide modes and provide to propagate call?
+    # modes depend on frequency → not sure this can be sped up
     for i in eachindex(freqs)
         tx = Transmitter(freqs[i])
         E, a, p = propagate(waveguide, tx, rx);
-        amps[i] = a
-        phases[i] = p
+        amps[i] = [a]
+        phases[i] = [p]
     end
     return amps, phases
 end
 
+function buildwaveguide(dt, txlat, txlon, rxlat, rxlon)
+    tx = Transmitter("", txlat, txlon, 20e3) # precompute waveguide segments
+    rx = Receiver("", rxlat, rxlon, 0.0, VerticalDipole())
+    geoaz = inverse(tx.longitude, tx.latitude, rx.longitude, rx.latitude).azi
+    line = GeodesicLine(tx, rx)
+    hcoeff = (1.345, 0.668, -0.177, -0.248, 0.096)
+    bcoeff = (0.01, 0.005, -0.002, 0.01, 0.015)
+    grounds, dists = groundsegments(tx, rx; resolution=20e3)
+    wvgs = Vector{HomogeneousWaveguide{Species}}(undef, length(dists))
+    for i in eachindex(dists)
+        dist = dists[i]
+        wpt = forward(line, dist)
+
+        bfield = igrf(geoaz, wpt.lat, wpt.lon, year(dt))
+
+        sza = zenithangle(wpt.lat, wpt.lon, dt)
+        h, b = ferguson(wpt.lat, sza, dt)
+        h += fourierperturbation(sza, hcoeff)
+        b += fourierperturbation(sza, bcoeff)
+
+        species = Species(QE, ME, z->waitprofile(z, h, b), electroncollisionfrequency)
+
+        wvgs[i] = HomogeneousWaveguide(bfield, species, grounds[i], dist)
+    end
+    wvg = SegmentedWaveguide(wvgs)
+
+    return wvg
+end
+
 # fit phase dispersion to final phases
-# TODO: replace with iterfit() from scratch.jl
 function phasefit(freqs, phases; p0 = [1E-6, 0.1, 0.5])
 
     @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
@@ -98,10 +127,25 @@ function iterfit(xdata, ydata, thres)
     fit, xin, yin, xout, yout
 end
 
+# build waveguide
+waveguide = buildwaveguide(dt, txlat, txlon, rxlat, rxlon);
+nsegments = length(waveguide.v)
+gsdist = inverse(txlon, txlat, rxlon, rxlat).dist;
+proprange = gsdist;
+rx = GroundSampler(0:1000e3:gsdist, Fields.Ez)
+
 # run broadband propagation
 freqs = 6e3:1e3:18e3;
 ωfreqs = 2*pi*freqs;
 @time amps, phases = varyfreq(waveguide, rx, freqs);
+@time E, a, p = propagate(waveguide, Transmitter(freqs[1]), GroundSampler(gsdist, Fields.Ez));
+# amps_hires = amps;
+# phases_hires = phases;
+# _hires: rx sampling interval = 10e3 m = 10 km
+# @time results: 2389.612713 seconds (8.46 G allocations: 184.949 GiB, 2.32% gc time)
+# _lowres: rx sampling interval = 1000e3m = 1000 km
+# @time results: 2055.894965 seconds (8.47 G allocations: 185.048 GiB, 2.37% gc time)
+# → sampling interval does not significantly impact runtime
 
 # fit curve to final phase
 finalphase = [phases[i][end] for i in eachindex(freqs)];
@@ -152,6 +196,19 @@ f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
 # f₀_dn
 
 # plot propagation path with waveguide segments
+latrange = -89.5:89.5
+lonrange = -179.5:179.5
+latmesh = ones(360)' .* latrange
+lonmesh = lonrange' .* ones(180)
+sigmamap = [get_sigma(lat, lon) for lat in latrange, lon in lonrange]
+wpts = waypoints(GeodesicLine(txlon, txlat, lon2=rxlon, lat2=rxlat), dist=100e3);
+wlats = zeros(length(wpts));
+wlons = zeros(length(wpts));
+for i in eachindex(wpts)
+    wlats[i] = wpts[i].lat;
+    wlons[i] = wpts[i].lon;
+end
+
 begin fig = Figure(resolution = (1200,1200))
 
     # amplitude and phase for each frequency
@@ -172,6 +229,9 @@ begin fig = Figure(resolution = (1200,1200))
     fa4 = Axis(fig[3,1:3], title=@sprintf("waveform at r = %d km", proprange/1e3),
         xlabel="t - r/c (ms)",
         ylabel="amplitude (normalized)")
+
+    ga1 = GeoAxis(fig[4,1]; coastlines = true, title = "σ",
+        dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
 
     ylims_fa1 = [-30, 90];
     # lines!(fa1, [distances[2]/1000, distances[2]/1000], ylims_fa1; color="gray")
@@ -211,13 +271,20 @@ begin fig = Figure(resolution = (1200,1200))
     xlims!(fa4, [-0.2 1])
     # ylims!(fa4, [-100 100])
 
+    sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
+        colormap=cgrad(:darkterrain, rev = true), shading=false);
+    cb1 = Colorbar(fig[4,2], sf1; label = "log10(σ / S m⁻¹)", height = Relative(0.65)) # check units
+    lines!(ga1, wlons, wlats; color=:yellow, lineweight=10)
+    scatter!(ga1, txlon, txlat; color=:green, markersize=10)
+    scatter!(ga1, rxlon, rxlat; color=:red, markersize=10)
+
     # legends
     axislegend(fa3)
     axislegend(fa4)
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
     # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    superstr = @sprintf("Broadband sferic propagation\n segment 1: h' = %.1f km, β = %.1f km⁻¹\n segment 1: h' = %.1f km, β = %.1f km⁻¹\nf₀ = %.2f kHz", h1, β1, h2, β2, f₀/1e3)
+    superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz", nsegments, f₀/1e3)
     supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
     # save("sample_sferic_dispersion.png", fig, px_per_unit=1)
