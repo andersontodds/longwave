@@ -27,7 +27,7 @@ h2 = 87     # km
 ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
 distances = [0.0, 2500e3]
-species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
+species = [ Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency), 
             Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
 
 waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield[i], species[i], ground, 
@@ -54,8 +54,8 @@ function varyfreq(waveguide, rx, freqs)
     for i in eachindex(freqs)
         tx = Transmitter(freqs[i])
         E, a, p = propagate(waveguide, tx, rx);
-        amps[i] = [a]
-        phases[i] = [p]
+        amps[i] = a # this breaks for single frequency, need another method with amps[i] = [a]
+        phases[i] = p # this breaks for single frequency
     end
     return amps, phases
 end
@@ -132,13 +132,13 @@ waveguide = buildwaveguide(dt, txlat, txlon, rxlat, rxlon);
 nsegments = length(waveguide.v)
 gsdist = inverse(txlon, txlat, rxlon, rxlat).dist;
 proprange = gsdist;
-rx = GroundSampler(0:1000e3:gsdist, Fields.Ez)
+rx = GroundSampler(0:10e3:gsdist, Fields.Ez)
 
 # run broadband propagation
 freqs = 6e3:1e3:18e3;
 ωfreqs = 2*pi*freqs;
 @time amps, phases = varyfreq(waveguide, rx, freqs);
-@time E, a, p = propagate(waveguide, Transmitter(freqs[1]), GroundSampler(gsdist, Fields.Ez));
+# @time E, a, p = propagate(waveguide, Transmitter(freqs[1]), GroundSampler(gsdist, Fields.Ez));
 # amps_hires = amps;
 # phases_hires = phases;
 # _hires: rx sampling interval = 10e3 m = 10 km
@@ -153,6 +153,9 @@ finalphase = [phases[i][end] for i in eachindex(freqs)];
 finalphasefit, ωin, ϕin, ωout, ϕout = iterfit([ωfreqs;], finalphase, proprange/50);
 finalphasecurve = finalphasefit.param[1].*ωfreqs .+ finalphasefit.param[2] .+ finalphasefit.param[3]./(ωfreqs);
 ωₒ = (finalphasefit.param[3]*2*c/proprange)^(1/2)
+c3 = finalphasefit.param[3]/proprange
+f₀ = (c3*4*c)^(1/2)/(2*pi) # note! factor of 4 is a fudge; parallel-plate dispersion relation indicates it should be a 2
+hᵢ = c/(2f₀)
 
 # generate simulated and synthetic sferics
 # simulated: use LMP-propagated amplitudes and phases, with Dowden inital amplitudes
@@ -192,7 +195,10 @@ waveform_syn = waveform_syn./maximum(abs.(waveform_syn));
 
 # "dispersion parameter"
 c3 = finalphasefit.param[3]/proprange
+f₀ = (c3*2*c)^(1/2)/(2*pi)
 f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
+# waveguide effective height
+hᵢ = c/(2f₀)
 # f₀_dn
 
 # plot propagation path with waveguide segments
@@ -209,7 +215,12 @@ for i in eachindex(wpts)
     wlons[i] = wpts[i].lon;
 end
 
-begin fig = Figure(resolution = (1200,1200))
+
+begin fig = Figure(resolution = (1000,1000))
+    
+    # global plot properties
+    fontsize_theme = Theme(fontsize=20)
+    set_theme!(fontsize_theme)
 
     # amplitude and phase for each frequency
     freqcolors = cgrad(:thermal, length(freqs)+4, categorical=true, rev=false)
@@ -230,8 +241,8 @@ begin fig = Figure(resolution = (1200,1200))
         xlabel="t - r/c (ms)",
         ylabel="amplitude (normalized)")
 
-    ga1 = GeoAxis(fig[4,1]; coastlines = true, title = "σ",
-        dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
+    # ga1 = GeoAxis(fig[4,1]; coastlines = true, title = "σ",
+    #     dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
 
     ylims_fa1 = [-30, 90];
     # lines!(fa1, [distances[2]/1000, distances[2]/1000], ylims_fa1; color="gray")
@@ -254,9 +265,9 @@ begin fig = Figure(resolution = (1200,1200))
     scatter!(fa3, ωin/(2*pi*1000), rad2deg.(ϕin);
         linewidth=2, color="black",
         label="measured phase")
-    scatter!(fa3, ωout/(2*pi*1000), rad2deg.(ϕout);
-        linewidth=2, color="red",
-        label="outliers")
+    # scatter!(fa3, ωout/(2*pi*1000), rad2deg.(ϕout);
+    #     linewidth=2, color="red",
+    #     label="outliers")
     lines!(fa3, freqs/1000, rad2deg.(finalphasecurve);
         linewidth=2, linestyle="-", color="black",
         label = "phase fit")
@@ -264,19 +275,19 @@ begin fig = Figure(resolution = (1200,1200))
     lines!(fa4, tᵣ.*1e3, waveform;
         linewidth=2, color="black",
         label="simulated (LMP)")
-    lines!(fa4, tᵣ.*1e3, waveform_syn;
-        linewidth=2, color="red",
-        label="synthetic (Dowden+ 2002)")
+    # lines!(fa4, tᵣ.*1e3, waveform_syn;
+    #     linewidth=2, color="red",
+    #     label="synthetic (Dowden+ 2002)")
 
     xlims!(fa4, [-0.2 1])
     # ylims!(fa4, [-100 100])
 
-    sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
-        colormap=cgrad(:darkterrain, rev = true), shading=false);
-    cb1 = Colorbar(fig[4,2], sf1; label = "log10(σ / S m⁻¹)", height = Relative(0.65)) # check units
-    lines!(ga1, wlons, wlats; color=:yellow, lineweight=10)
-    scatter!(ga1, txlon, txlat; color=:green, markersize=10)
-    scatter!(ga1, rxlon, rxlat; color=:red, markersize=10)
+    # sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
+    #     colormap=cgrad(:darkterrain, rev = true), shading=false);
+    # cb1 = Colorbar(fig[4,2], sf1; label = "log10(σ / S m⁻¹)", height = Relative(0.65)) # check units
+    # lines!(ga1, wlons, wlats; color=:yellow, lineweight=10)
+    # scatter!(ga1, txlon, txlat; color=:green, markersize=10)
+    # scatter!(ga1, rxlon, rxlat; color=:red, markersize=10)
 
     # legends
     axislegend(fa3)
@@ -284,8 +295,8 @@ begin fig = Figure(resolution = (1200,1200))
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
     # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz", nsegments, f₀/1e3)
+    superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz; hᵢ = %.2f km", nsegments, f₀/1e3, hᵢ/1e3)
     supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
-    # save("sample_sferic_dispersion.png", fig, px_per_unit=1)
+    # save("figures/sample_sferic_dispersion_1000_LMPonly.png", fig, px_per_unit=1)
 end

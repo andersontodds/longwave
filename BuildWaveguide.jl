@@ -313,6 +313,7 @@ using LMPTools
 using GeographicLib
 using Dates, Printf
 using GeoMakie
+using CairoMakie
 
 dt = DateTime(2022, 11, 07, 15,00,00)
 
@@ -375,7 +376,11 @@ for i = 1:length(latrange), j = 1:length(lonrange)
 end
 
 
-begin fig = Figure(resolution = (1200,800))
+begin fig = Figure(resolution = (1000,600))
+
+    # global plot properties
+    fontsize_theme = Theme(fontsize=20)
+    set_theme!(fontsize_theme)
     
     ga1 = GeoAxis(fig[1,1]; coastlines = true, title = "σ",
         dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
@@ -412,5 +417,6 @@ begin fig = Figure(resolution = (1200,800))
     supertitle = Label(fig[0, :], superstr; fontsize=20)
 
     fig
+    # save("figures/sample_waveguide_1000.png", fig, px_per_unit=1)
 end
 
