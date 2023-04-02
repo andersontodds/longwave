@@ -27,14 +27,15 @@ h2 = 87     # km
 ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
 distances = [0.0, 2500e3]
-species = [ Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency), 
-            Species(QE, ME, z->waitprofile(z, h2, β2), electroncollisionfrequency)]
+species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
+            Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency)]
 
 waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield[i], species[i], ground, 
             distances[i]) for i in 1:2]);
 
 proprange = 5000e3;
-rx = GroundSampler(0:10e3:proprange, Fields.Ez);
+gsrange = 0:10e3:proprange;
+rx = GroundSampler(gsrange, Fields.Ez);
 
 # 2. Ferguson 1980/LWPC-type waveguide
 dt = DateTime(2022, 11, 07, 15,00,00)
@@ -147,6 +148,15 @@ freqs = 6e3:1e3:18e3;
 # @time results: 2055.894965 seconds (8.47 G allocations: 185.048 GiB, 2.37% gc time)
 # → sampling interval does not significantly impact runtime
 
+# fit curve to phase
+a3 = zeros(length(phases[1]));
+for p in eachindex(phases[1])
+    fit = phasefit([ωfreqs;], [phases[i][p] for i in eachindex(freqs)]);
+    a3[p] = fit.param[3];
+end
+
+a3_r = a3./gsrange;
+
 # fit curve to final phase
 finalphase = [phases[i][end] for i in eachindex(freqs)];
 # finalphasefit = phasefit(ωfreqs, finalphase)
@@ -235,11 +245,15 @@ begin fig = Figure(resolution = (1000,1000))
 
     fa3 = Axis(fig[1:2, 3], title=@sprintf("phase fit at r = %d km", proprange/1e3),
         xlabel="frequency (kHz)",
-        ylabel="phase (∘)")    
+        ylabel="phase (∘)")
 
-    fa4 = Axis(fig[3,1:3], title=@sprintf("waveform at r = %d km", proprange/1e3),
-        xlabel="t - r/c (ms)",
-        ylabel="amplitude (normalized)")
+    # fa4 = Axis(fig[3,1:3], title=@sprintf("waveform at r = %d km", proprange/1e3),
+    #     xlabel="t - r/c (ms)",
+    #     ylabel="amplitude (normalized)")
+
+    fa4 = Axis(fig[3,1:3], title="a₃(r)",
+        xlabel="r (km)",
+        ylabel="a₃/r")
 
     # ga1 = GeoAxis(fig[4,1]; coastlines = true, title = "σ",
     #     dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
@@ -265,21 +279,25 @@ begin fig = Figure(resolution = (1000,1000))
     scatter!(fa3, ωin/(2*pi*1000), rad2deg.(ϕin);
         linewidth=2, color="black",
         label="measured phase")
-    # scatter!(fa3, ωout/(2*pi*1000), rad2deg.(ϕout);
-    #     linewidth=2, color="red",
-    #     label="outliers")
+    scatter!(fa3, ωout/(2*pi*1000), rad2deg.(ϕout);
+        linewidth=2, color="red",
+        label="outliers")
     lines!(fa3, freqs/1000, rad2deg.(finalphasecurve);
         linewidth=2, linestyle="-", color="black",
         label = "phase fit")
 
-    lines!(fa4, tᵣ.*1e3, waveform;
-        linewidth=2, color="black",
-        label="simulated (LMP)")
+    lines!(fa4, rx.distance/1e3, a3_r;
+        linewidth=2, color="red")
+
+    # lines!(fa4, tᵣ.*1e3, waveform;
+    #     linewidth=2, color="black",
+    #     label="simulated (LMP)")
     # lines!(fa4, tᵣ.*1e3, waveform_syn;
     #     linewidth=2, color="red",
     #     label="synthetic (Dowden+ 2002)")
 
-    xlims!(fa4, [-0.2 1])
+    xlims!(fa4, [0, proprange/1e3]);
+    # xlims!(fa4, [-0.2 1])
     # ylims!(fa4, [-100 100])
 
     # sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
@@ -291,12 +309,13 @@ begin fig = Figure(resolution = (1000,1000))
 
     # legends
     axislegend(fa3)
-    axislegend(fa4)
+    # axislegend(fa4)
     fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
 
     # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz; hᵢ = %.2f km", nsegments, f₀/1e3, hᵢ/1e3)
-    supertitle = Label(fig[0, :], superstr; fontsize=20)
+    supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 5000 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
+    # superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz; hᵢ = %.2f km", nsegments, f₀/1e3, hᵢ/1e3)
+    # supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
     # save("figures/sample_sferic_dispersion_1000_LMPonly.png", fig, px_per_unit=1)
 end
