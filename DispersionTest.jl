@@ -102,6 +102,7 @@ function phasefit(freqs, phases; p0 = [1E-6, 0.1, 0.5])
 
 end
 
+# change this function to phase shift frequency elements by ±2π until fit better than threshold is achieved
 function iterfit(xdata, ydata, thres)
 
     @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)

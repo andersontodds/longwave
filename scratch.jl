@@ -7,16 +7,17 @@ using LsqFit
 using SolarAngles
 
 # data from longwave/DispersionTest.jl
+# 2π corrections added
 ωf = [2*pi*(6e3:1e3:18e3);];
-ϕ = [   5.840479829632033
-        3.7609869647037457
-        8.513717721555789
-        7.0863922989541015
-       -0.35831763785328985
+ϕ = [   5.840479829632033   + 2*π
+        3.7609869647037457  + 2*π
+        8.513717721555789   
+        7.0863922989541015  
+       -0.35831763785328985 + 2*π
         5.149585430769938
         4.344839597842935
-        9.638081754389809
-        8.942412906068212
+        9.638081754389809   - 2*π
+        8.942412906068212   - 2*π
         1.9855723961852674
         1.398661708163204
         1.1841425901930442
@@ -49,6 +50,12 @@ function iterfit(xdata, ydata, thres)
     end
     fit, xin, yin, xout, yout
 end
+
+# test n*2π shifting
+# rules:
+#   1. minimize slope of ϕ(ω)
+#   2. ϕ(ω) must be concave up
+#   3. no ω components may be further than <threshold> from fit
 
 xyfit, xin, yin, xout, yout = iterfit(ωf, ϕ, thres);
 fitcurve = xyfit.param[1].*ωf .+ xyfit.param[2] .+ xyfit.param[3]./(ωf);
