@@ -9,15 +9,15 @@ using SolarAngles
 # data from longwave/DispersionTest.jl
 # 2π corrections added
 ωf = [2*pi*(6e3:1e3:18e3);];
-ϕ = [   5.840479829632033   + 2*π
-        3.7609869647037457  + 2*π
+ϕ = [   5.840479829632033   #+ 2*π
+        3.7609869647037457  #+ 2*π
         8.513717721555789   
         7.0863922989541015  
-       -0.35831763785328985 + 2*π
+       -0.35831763785328985 #+ 2*π
         5.149585430769938
         4.344839597842935
-        9.638081754389809   - 2*π
-        8.942412906068212   - 2*π
+        9.638081754389809   #- 2*π
+        8.942412906068212   #- 2*π
         1.9855723961852674
         1.398661708163204
         1.1841425901930442
@@ -52,27 +52,63 @@ function iterfit(xdata, ydata, thres)
 end
 
 # test n*2π shifting
-# rules:
+# rules for ϕ(ω) fit:
 #   1. minimize slope of ϕ(ω)
 #   2. ϕ(ω) must be concave up
 #   3. no ω components may be further than <threshold> from fit
+# if Δϕ/Δω > -2π s⁻¹ (i.e. -2π radians for ω steps of 2π rad*1kHz), can shift data  
+# until this criterion is met 
+function shiftfit(xdata, ydata, thres)
 
-xyfit, xin, yin, xout, yout = iterfit(ωf, ϕ, thres);
-fitcurve = xyfit.param[1].*ωf .+ xyfit.param[2] .+ xyfit.param[3]./(ωf);
-fit_f₀ = (xyfit.param[3]*2*c/r)^(1/2)/(2*pi);
+    @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
+    # bounds
+    lb = [-Inf, -Inf, 0];
+    ub = [Inf, Inf, Inf];
+    p0 = [1E-6, 0.1, thres];
+    # set up loop conditions
+    xshift = copy(xdata); # can remove these if preserving original data is not important
+    yshift = copy(ydata);
+    # xout = Vector{Float64}(undef, 0);
+    # yout = Vector{Float64}(undef, 0);
+    for i in 2:length(ydata)
+        n = ceil((yshift[i] - yshift[i-1])*1e3/(xshift[i] - xshift[i-1])) # number of 2π shifts
+        yshift[i] = yshift[i] - n*2π
+    end
+    fit = curve_fit(model, xshift, yshift, p0, lower=lb, upper=ub)
+    # sigma = stderror(fit)[3]
+    # while sigma > thres
+    #     out = findmax(abs.(fit.resid));
+    #     push!(xout, xin[out[2]]);
+    #     push!(yout, yin[out[2]]);
+    #     popat!(xin, out[2]);
+    #     popat!(yin, out[2]);
+    #     fit = curve_fit(model, xin, yin, p0, lower=lb, upper=ub)
+    #     sigma = stderror(fit)[3] 
+    # end
+    fit, xshift, yshift
+end
+
+# xyfit, xin, yin, xout, yout = iterfit(ωf, ϕ, thres);
+ϕfit, ωshift, ϕshift = shiftfit(ωf, ϕ, thres);
+fitcurve = ϕfit.param[1].*ωf .+ ϕfit.param[2] .+ ϕfit.param[3]./(ωf);
+fit_f₀ = (ϕfit.param[3]*2*c/r)^(1/2)/(2*pi);
 
 begin fig = Figure()
     fa = Axis(fig[1, 1], title=@sprintf("phase fit at r = %d km\nf₀ = %.2f kHz", r/1e3, fit_f₀/1e3),
         xlabel="frequency (kHz)",
         ylabel="phase (∘)")
 
-    scatter!(fa, xin./(2*pi*1000), rad2deg.(yin);
+    scatter!(fa, ωf./(2*pi*1000), rad2deg.(ϕ);
         linewidth=2, color="black",
-        label="in")
+        label="unshifted")
 
-    scatter!(fa, xout./(2*pi*1000), rad2deg.(yout);
+    scatter!(fa, ωshift./(2*pi*1000), rad2deg.(ϕshift);
         linewidth=2, color="red",
-        label="out")
+        label="shifted")
+
+    # scatter!(fa, xout./(2*pi*1000), rad2deg.(yout);
+    #     linewidth=2, color="red",
+    #     label="out")
 
     lines!(fa, ωf/(2*pi*1000), rad2deg.(fitcurve);
         linewidth=2, linestyle="-", color="black",

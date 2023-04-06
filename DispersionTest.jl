@@ -8,7 +8,7 @@ using GeographicLib
 using LsqFit
 #using Suppressor
 using CairoMakie
-using Printf
+using Dates, Printf
 
 c = 2.99792458e8    # ms⁻¹
 v_g = 0.9905*c      # speed of light in the EIWG
@@ -23,12 +23,15 @@ h1 = 74     # km
 h2 = 87     # km
 β2 = 0.5    # km⁻¹
 
+h = h2;
+β = β2;
+
 # "typical" earth ground 
 ground = Ground(10,1e-4)
 # ground = Ground(81, 4.0)
 distances = [0.0, 2500e3]
-species = [ Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency), 
-            Species(QE, ME, z->waitprofile(z, h1, β1), electroncollisionfrequency)]
+species = [ Species(QE, ME, z->waitprofile(z, h, β), electroncollisionfrequency), 
+            Species(QE, ME, z->waitprofile(z, h, β), electroncollisionfrequency)]
 
 waveguide = SegmentedWaveguide([HomogeneousWaveguide(bfield[i], species[i], ground, 
             distances[i]) for i in 1:2]);
@@ -39,7 +42,7 @@ rx = GroundSampler(gsrange, Fields.Ez);
 
 # 2. Ferguson 1980/LWPC-type waveguide
 dt = DateTime(2022, 11, 07, 15,00,00)
-txlat, txlon = [10, 10];
+txlat, txlon = [44.5, -3.3]; # bay of biscay; starts with long ocean path 
 rxlat, rxlon = [47.6543, -122.3083]; # seattle
 
 # vary frequency, propagate
@@ -129,12 +132,43 @@ function iterfit(xdata, ydata, thres)
     fit, xin, yin, xout, yout
 end
 
+function shiftfit(xdata, ydata, thres)
+
+    @. model(x, p) = p[1]*x + p[2] + p[3]*(1/x)
+    # bounds
+    lb = [-Inf, -Inf, 0];
+    ub = [Inf, Inf, Inf];
+    p0 = [1E-6, 0.1, thres];
+    # set up loop conditions
+    xshift = copy(xdata); # can remove these if preserving original data is not important
+    yshift = copy(ydata);
+    # xout = Vector{Float64}(undef, 0);
+    # yout = Vector{Float64}(undef, 0);
+    for i in 2:length(ydata)
+        n = ceil((yshift[i] - yshift[i-1])*1e3/(xshift[i] - xshift[i-1])) # number of 2π shifts
+        yshift[i] = yshift[i] - n*2π
+    end
+    fit = curve_fit(model, xshift, yshift, p0, lower=lb, upper=ub)
+    # sigma = stderror(fit)[3]
+    # while sigma > thres
+    #     out = findmax(abs.(fit.resid));
+    #     push!(xout, xin[out[2]]);
+    #     push!(yout, yin[out[2]]);
+    #     popat!(xin, out[2]);
+    #     popat!(yin, out[2]);
+    #     fit = curve_fit(model, xin, yin, p0, lower=lb, upper=ub)
+    #     sigma = stderror(fit)[3] 
+    # end
+    fit, xshift, yshift
+end
+
 # build waveguide
 waveguide = buildwaveguide(dt, txlat, txlon, rxlat, rxlon);
 nsegments = length(waveguide.v)
 gsdist = inverse(txlon, txlat, rxlon, rxlat).dist;
 proprange = gsdist;
-rx = GroundSampler(0:10e3:gsdist, Fields.Ez)
+gsrange = 0:10e3:gsdist;
+rx = GroundSampler(gsrange, Fields.Ez)
 
 # run broadband propagation
 freqs = 6e3:1e3:18e3;
@@ -151,68 +185,75 @@ freqs = 6e3:1e3:18e3;
 
 # fit curve to phase
 a3 = zeros(length(phases[1]));
+a3_noshift = zeros(length(phases[1]));
 for p in eachindex(phases[1])
     fit = phasefit([ωfreqs;], [phases[i][p] for i in eachindex(freqs)]);
+    a3_noshift[p] = fit.param[3];
+    fit, ωshift, ϕshift = shiftfit([ωfreqs;], [phases[i][p] for i in eachindex(freqs)], gsrange[p]/50);
     a3[p] = fit.param[3];
 end
 
+a3_noshift_r = a3_noshift./gsrange;
 a3_r = a3./gsrange;
 
 # fit curve to final phase
-finalphase = [phases[i][end] for i in eachindex(freqs)];
-# finalphasefit = phasefit(ωfreqs, finalphase)
-finalphasefit, ωin, ϕin, ωout, ϕout = iterfit([ωfreqs;], finalphase, proprange/50);
+r = length(gsrange);
+finalphase = [phases[i][r] for i in eachindex(freqs)];
+finalphasefit_us = phasefit(ωfreqs, finalphase)
+finalphasecurve_us = finalphasefit_us.param[1].*ωfreqs .+ finalphasefit_us.param[2] .+ finalphasefit_us.param[3]./(ωfreqs);
+# finalphasefit, ωin, ϕin, ωout, ϕout = iterfit([ωfreqs;], finalphase, proprange/50);
+finalphasefit, ωshift, ϕshift = shiftfit([ωfreqs;], finalphase, proprange/50);
 finalphasecurve = finalphasefit.param[1].*ωfreqs .+ finalphasefit.param[2] .+ finalphasefit.param[3]./(ωfreqs);
 ωₒ = (finalphasefit.param[3]*2*c/proprange)^(1/2)
 c3 = finalphasefit.param[3]/proprange
-f₀ = (c3*4*c)^(1/2)/(2*pi) # note! factor of 4 is a fudge; parallel-plate dispersion relation indicates it should be a 2
+f₀ = (c3*2*c)^(1/2)/(2*pi) # note! factor of 4 is a fudge; parallel-plate dispersion relation indicates it should be a 2
 hᵢ = c/(2f₀)
 
-# generate simulated and synthetic sferics
-# simulated: use LMP-propagated amplitudes and phases, with Dowden inital amplitudes
-# synthetic: use Dowden amplitudes and phases
-r = proprange;
-tᵣ = -0.2e-3:1e-6:1e-3;
-t = tᵣ .+ r/c;
-# initial amplitude parameters; see synthetic sferics in scratch.jl and Dowden 2002
-ωₐ = 2*pi*14e3;     # frequency of peak spectral density: ~12 kHz
-ωᵣ = 2*pi*11e3;     # tune this
-ω₀_syn = 2*pi*1.6e3;    # waveguide cutoff frequency
+# # generate simulated and synthetic sferics
+# # simulated: use LMP-propagated amplitudes and phases, with Dowden inital amplitudes
+# # synthetic: use Dowden amplitudes and phases
+# r = proprange;
+# tᵣ = -0.2e-3:1e-6:1e-3;
+# t = tᵣ .+ r/c;
+# # initial amplitude parameters; see synthetic sferics in scratch.jl and Dowden 2002
+# ωₐ = 2*pi*14e3;     # frequency of peak spectral density: ~12 kHz
+# ωᵣ = 2*pi*11e3;     # tune this
+# ω₀_syn = 2*pi*1.6e3;    # waveguide cutoff frequency
 
-# get final amplitudes
-finalamps = [amps[i][end] for i in eachindex(freqs)];
-Aₒ = cos.(pi*(ωfreqs.-ωₐ)./(2*ωᵣ)).^2;
-A = Aₒ.*10.0.^(finalamps./20);
+# # get final amplitudes
+# finalamps = [amps[i][end] for i in eachindex(freqs)];
+# Aₒ = cos.(pi*(ωfreqs.-ωₐ)./(2*ωᵣ)).^2;
+# A = Aₒ.*10.0.^(finalamps./20);
 
-# build synthetic and simulated waveforms
-waveform = zeros(length(t));
-waveform_syn = zeros(length(t));
-for j in eachindex(freqs)
-    # component = amps[j][end]*cos.(ωfreqs[j]*(t.-proprange/v_g));
+# # build synthetic and simulated waveforms
+# waveform = zeros(length(t));
+# waveform_syn = zeros(length(t));
+# for j in eachindex(freqs)
+#     # component = amps[j][end]*cos.(ωfreqs[j]*(t.-proprange/v_g));
     
-    component = A[j]*cos.(ωfreqs[j].*(t.-(r/c)*(1 - ωₒ^2/ωfreqs[j]^2)^(1/2)))
-    global waveform = waveform + component;
+#     component = A[j]*cos.(ωfreqs[j].*(t.-(r/c)*(1 - ωₒ^2/ωfreqs[j]^2)^(1/2)))
+#     global waveform = waveform + component;
 
-    component_syn = Aₒ[j]*cos.(ωfreqs[j].*(t.-(r/c)*(1 - (ω₀_syn^2)/(ωfreqs[j]^2))^(1/2)))
-    global waveform_syn = waveform_syn + component_syn;
+#     component_syn = Aₒ[j]*cos.(ωfreqs[j].*(t.-(r/c)*(1 - (ω₀_syn^2)/(ωfreqs[j]^2))^(1/2)))
+#     global waveform_syn = waveform_syn + component_syn;
 
-end
+# end
 
-# normalize waveforms
-# waveform = waveform./length(ωfreqs);
-# waveform_syn = waveform_syn./length(ωfreqs);
-waveform = waveform./maximum(abs.(waveform));
-waveform_syn = waveform_syn./maximum(abs.(waveform_syn));
+# # normalize waveforms
+# # waveform = waveform./length(ωfreqs);
+# # waveform_syn = waveform_syn./length(ωfreqs);
+# waveform = waveform./maximum(abs.(waveform));
+# waveform_syn = waveform_syn./maximum(abs.(waveform_syn));
 
-# "dispersion parameter"
-c3 = finalphasefit.param[3]/proprange
-f₀ = (c3*2*c)^(1/2)/(2*pi)
-f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
-# waveguide effective height
-hᵢ = c/(2f₀)
-# f₀_dn
+# # "dispersion parameter"
+# c3 = finalphasefit.param[3]/proprange
+# f₀ = (c3*2*c)^(1/2)/(2*pi)
+# f₀ = (finalphasefit.param[3]*2*c/proprange)^(1/2)/(2*pi)
+# # waveguide effective height
+# hᵢ = c/(2f₀)
+# # f₀_dn
 
-# plot propagation path with waveguide segments
+# # plot propagation path with waveguide segments
 latrange = -89.5:89.5
 lonrange = -179.5:179.5
 latmesh = ones(360)' .* latrange
@@ -226,6 +267,20 @@ for i in eachindex(wpts)
     wlons[i] = wpts[i].lon;
 end
 
+begin fig = Figure(resolution = (1000,600))
+
+    ga1 = GeoAxis(fig[1,1], coastlines = true, title = "σ",
+        dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
+
+    sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
+        colormap=cgrad(:darkterrain, rev = true), shading=false);
+    cb1 = Colorbar(fig[1,2], sf1; label = "log₁₀(σ / S m⁻¹)", height = Relative(0.65)) # check units
+    lines!(ga1, wlons, wlats; color=:yellow, lineweight=10)
+    scatter!(ga1, txlon, txlat; color=:green, markersize=10)
+    scatter!(ga1, rxlon, rxlat; color=:red, markersize=10)
+
+    fig
+end
 
 begin fig = Figure(resolution = (1000,1000))
     
@@ -244,7 +299,7 @@ begin fig = Figure(resolution = (1000,1000))
         xlabel="distance (km)",
         ylabel="phase (∘)")
 
-    fa3 = Axis(fig[1:2, 3], title=@sprintf("phase fit at r = %d km", proprange/1e3),
+    fa3 = Axis(fig[1:2, 3], title=@sprintf("phase fit at r = %d km", gsrange[r]/1e3),
         xlabel="frequency (kHz)",
         ylabel="phase (∘)")
 
@@ -252,11 +307,11 @@ begin fig = Figure(resolution = (1000,1000))
     #     xlabel="t - r/c (ms)",
     #     ylabel="amplitude (normalized)")
 
-    fa4 = Axis(fig[3,1:3], title="a₃(r)",
+    fa4 = Axis(fig[3,1:3], title="a₃(r)/r",
         xlabel="r (km)",
-        ylabel="a₃/r")
+        ylabel="a₃/r (rad² s⁻¹ m⁻¹)")
 
-    # ga1 = GeoAxis(fig[4,1]; coastlines = true, title = "σ",
+    # ga1 = GeoAxis(fig[4,1], coastlines = true, title = "σ",
     #     dest = "+proj=natearth", latlims = (-90,90), lonlims = (-180, 180))
 
     ylims_fa1 = [-30, 90];
@@ -277,18 +332,29 @@ begin fig = Figure(resolution = (1000,1000))
             linewidth=2, color=freqcolors[i+1])
     end
 
-    scatter!(fa3, ωin/(2*pi*1000), rad2deg.(ϕin);
+    scatter!(fa3, ωfreqs/(2*pi*1000), rad2deg.(finalphase);
         linewidth=2, color="black",
         label="measured phase")
-    scatter!(fa3, ωout/(2*pi*1000), rad2deg.(ϕout);
+    scatter!(fa3, ωshift/(2*pi*1000), rad2deg.(ϕshift);
         linewidth=2, color="red",
-        label="outliers")
-    lines!(fa3, freqs/1000, rad2deg.(finalphasecurve);
+        label="shifted phase")
+    lines!(fa3, freqs/1000, rad2deg.(finalphasecurve_us);
         linewidth=2, linestyle="-", color="black",
-        label = "phase fit")
+        label="unshifted phase fit")
+    lines!(fa3, freqs/1000, rad2deg.(finalphasecurve);
+        linewidth=2, linestyle="-", color="red",
+        label="shifted phase fit")
 
+    lines!(fa4, rx.distance/1e3, a3_noshift_r;
+        linewidth=2, color="black",
+        label="nonshifted fit")
+    
     lines!(fa4, rx.distance/1e3, a3_r;
-        linewidth=2, color="red")
+        linewidth=2, color="red",
+        label="shifted fit")
+
+    vlines!(fa4, [waveguide.v[i].distance/1e3 for i in 1:nsegments];
+        linewidth=1, color="gray")
 
     # lines!(fa4, tᵣ.*1e3, waveform;
     #     linewidth=2, color="black",
@@ -298,8 +364,8 @@ begin fig = Figure(resolution = (1000,1000))
     #     label="synthetic (Dowden+ 2002)")
 
     xlims!(fa4, [0, proprange/1e3]);
-    # xlims!(fa4, [-0.2 1])
-    # ylims!(fa4, [-100 100])
+    # xlims!(fa4, [0 2000])
+    ylims!(fa4, [0 0.5])
 
     # sf1 = surface!(ga1, lonmesh, latmesh, log10.(sigmamap); # change to log colorscale; colormap to categorical
     #     colormap=cgrad(:darkterrain, rev = true), shading=false);
@@ -309,14 +375,16 @@ begin fig = Figure(resolution = (1000,1000))
     # scatter!(ga1, rxlon, rxlat; color=:red, markersize=10)
 
     # legends
-    axislegend(fa3)
-    # axislegend(fa4)
-    fig[1:2, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false)
+    # axislegend(fa3)
+    axislegend(fa4)
+    fig[1, 2] = Legend(fig, fa1, "frequency (kHz)", framevisible=false, nbanks=7, 
+        orientation=:horizontal)
+    fig[2, 2] = Legend(fig, fa3, "phase fits →", framevisible=false)
 
     # supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 2500 km, h' = 75 km, β = 0.35 km⁻¹\n segment 2: d = 2500 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    supertitle = Label(fig[0, :], "Broadband sferic propagation\n segment 1: d = 5000 km, h' = 82 km, β = 0.50 km⁻¹"; fontsize=20)
-    # superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz; hᵢ = %.2f km", nsegments, f₀/1e3, hᵢ/1e3)
-    # supertitle = Label(fig[0, :], superstr; fontsize=20)
+    # supertitle = Label(fig[0, :], @sprintf("Broadband sferic propagation\n segment 1: d = %d km, h' = %d km, β = %0.2f km⁻¹", proprange/1e3, h, β); fontsize=20)
+    superstr = @sprintf("Broadband sferic propagation\nnumber of segments = %g\nf₀ = %.2f kHz; hᵢ = %.2f km", nsegments, f₀/1e3, hᵢ/1e3)
+    supertitle = Label(fig[0, :], superstr; fontsize=20)
     fig
     # save("figures/sample_sferic_dispersion_1000_LMPonly.png", fig, px_per_unit=1)
 end
