@@ -267,6 +267,7 @@ for i in eachindex(wpts)
     wlons[i] = wpts[i].lon;
 end
 
+# waveguide plot -- get plot parameters from BuildWaveguide.jl
 begin fig = Figure(resolution = (1000,600))
 
     ga1 = GeoAxis(fig[1,1], coastlines = true, title = "σ",
@@ -282,6 +283,8 @@ begin fig = Figure(resolution = (1000,600))
     fig
 end
 
+# propagation plot
+# TODO: add segment information to a₃/r plot?
 begin fig = Figure(resolution = (1000,1000))
     
     # global plot properties
